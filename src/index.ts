@@ -170,7 +170,13 @@ async function run() {
 }
 
 if (require.main === module) {
-  run();
+  core.info("[XFLOWS] Starting actions 🚀");
+
+  run().catch((e) => {
+    core.setFailed(e?.message ?? String(e));
+  });
+
+  core.info("[XFLOWS] DONE 👌");
 }
 
 export { run };
