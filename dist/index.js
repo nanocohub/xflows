@@ -63604,7 +63604,6 @@ async function buildAndPush(opts) {
     for (const l of opts.labels)
         if (l.trim())
             args.push("--label", l);
-    // GHA cache
     args.push("--cache-from", "type=gha", "--cache-to", "type=gha,mode=max");
     core.info(`Running: docker ${args.join(" ")}`);
     await (0, execa_1.execa)("docker", args, { stdio: "inherit" });
@@ -63690,7 +63689,6 @@ async function run() {
     const buildArgs = splitLines(core.getInput("buildArgs"));
     const extraImageTags = splitLines(core.getInput("extraImageTags"));
     const extraLabels = splitLines(core.getInput("extraLabels"));
-    // ECS inputs
     const ecsCluster = core.getInput("ecsCluster");
     const ecsServiceWeb = core.getInput("ecsServiceWeb");
     const ecsServiceWorker = core.getInput("ecsServiceWorker");
@@ -63698,7 +63696,6 @@ async function run() {
     const taskDefWorkerPath = core.getInput("taskDefWorkerPath");
     const containerWebName = core.getInput("containerWebName") || "web";
     const containerWorkerName = core.getInput("containerWorkerName") || "sidekiq";
-    // Slack
     const slackChannelId = core.getInput("slackChannelId");
     const environmentName = core.getInput("environmentName") || "Staging";
     const slackToken = process.env.SLACK_BOT_TOKEN || "";
@@ -63709,9 +63706,11 @@ async function run() {
         process.env.GITHUB_REF_NAME ??
         "<branch>";
     const runUrl = `${process.env.GITHUB_SERVER_URL}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
-    // Notify start
+    const actor = github.context.actor ??
+        process.env.GITHUB_ACTOR ??
+        "<actor>";
     if (slackChannelId && slackToken) {
-        await (0, slackNotifier_1.slackPost)(slackToken, slackChannelId, (0, slackNotifier_1.startedPayload)(environmentName, target, runUrl, branch, repo));
+        await (0, slackNotifier_1.slackPost)(slackToken, slackChannelId, (0, slackNotifier_1.startedPayload)(environmentName, target, runUrl, branch, repo, actor));
     }
     try {
         const registry = process.env.AWS_ACCOUNT_ID
@@ -63733,9 +63732,9 @@ async function run() {
             tags,
             buildArgs,
             labels: [
-                `org.opencontainers.image.revision=${sha}`,
-                `org.opencontainers.image.source=${repo}`,
-                `org.opencontainers.image.version=${branch}`,
+                `revision=${sha}`,
+                `source=${repo}`,
+                `version=${branch}`,
                 ...extraLabels,
             ],
         });
@@ -63784,22 +63783,22 @@ async function run() {
             throw new Error(`Unknown target: ${target}`);
         }
         if (slackChannelId && slackToken) {
-            await (0, slackNotifier_1.slackPost)(slackToken, slackChannelId, (0, slackNotifier_1.finishedPayload)(environmentName, target, "success", imageRef, branch, repo));
+            await (0, slackNotifier_1.slackPost)(slackToken, slackChannelId, (0, slackNotifier_1.finishedPayload)(environmentName, target, "success", imageRef, branch, repo, actor));
         }
     }
     catch (err) {
         core.setFailed(err?.message || String(err));
         if (slackChannelId && slackToken) {
-            await (0, slackNotifier_1.slackPost)(slackToken, slackChannelId, (0, slackNotifier_1.finishedPayload)(environmentName, target, "failure", "<n/a>", branch, repo));
+            await (0, slackNotifier_1.slackPost)(slackToken, slackChannelId, (0, slackNotifier_1.finishedPayload)(environmentName, target, "failure", "<n/a>", branch, repo, actor));
         }
     }
 }
 if (require.main === require.cache[eval('__filename')]) {
-    core.info("XFLOWS: Starting actions 🚀");
+    core.info("[XFLOWS] Starting actions 🚀");
     run().catch((e) => {
         core.setFailed(e?.message ?? String(e));
     });
-    core.info("XFLOWS: DONE 👌");
+    core.info("[XFLOWS] DONE 👌");
 }
 
 
@@ -63868,35 +63867,110 @@ async function slackPost(token, channelId, payload) {
         core.warning(`Slack error: ${JSON.stringify(json)}`);
     }
 }
-function startedPayload(envName, target, runUrl, branch, repo) {
+function startedPayload(envName, target, runUrl, branch, repo, actor, gifUrl) {
+    const defaultGifUrl = "https://media.giphy.com/media/l3q2IYN87QjIg51QI/giphy.gif"; // Loading GIF
     return {
-        text: `:rocket: Deploy started → ${target}`,
+        text: `:rocket: Deployment started (In Progress)`,
         attachments: [
             {
                 color: "dbab09",
+                image_url: gifUrl || defaultGifUrl,
                 fields: [
-                    { title: "Branch", value: branch, short: true },
-                    { title: "Repo", value: repo, short: true },
-                    { title: "Env", value: envName, short: true },
-                    { title: "Run", value: runUrl, short: false },
+                    {
+                        title: "⏳ Status",
+                        value: "In Progress",
+                        short: true
+                    },
+                    {
+                        title: "🧠 Branch",
+                        value: branch,
+                        short: true
+                    },
+                    {
+                        title: "👤 Actor",
+                        value: actor,
+                        short: true
+                    },
+                    {
+                        title: "📚 Repository",
+                        value: repo,
+                        short: true
+                    },
+                    {
+                        title: "🌍 Environment",
+                        value: envName,
+                        short: true
+                    },
+                    {
+                        title: "🎯 Target",
+                        value: target,
+                        short: true
+                    },
+                    {
+                        title: "🔗 Run URL",
+                        value: runUrl,
+                        short: false
+                    }
                 ],
+                footer: `Deployment started`,
             },
         ],
     };
 }
-function finishedPayload(envName, target, status, imageRef, branch, repo) {
+function finishedPayload(envName, target, status, imageRef, branch, repo, actor, customGifs) {
     const ok = status === "success";
+    const statusText = ok ? "Completed" : "Failed";
+    const emoji = ok ? ":white_check_mark:" : ":x:";
+    const statusEmoji = ok ? "✅" : "❌";
+    const defaultSuccessGif = "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNGE0angyamJzNzhsNTMwbzdrMTg4azNwbGh2azN0MTZkcjl3a2RvdCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/umYMU8G2ixG5mJBDo5/giphy.gif";
+    const defaultFailureGif = "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHp3cGxieGxnZTB6ZGdlYWJpYmVuNWJ5d2loeGJpeXEyZnlzY25pciZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/5xaOcLyjXRo4TcX1SwE/giphy.gif";
+    const gifUrl = ok
+        ? (customGifs?.success || defaultSuccessGif)
+        : (customGifs?.failure || defaultFailureGif);
     return {
-        text: `${ok ? ":white_check_mark:" : ":x:"} Deploy ${status} → ${target}`,
+        text: `${emoji} Deployment finished (${statusText})`,
         attachments: [
             {
                 color: ok ? "28a745" : "ff0000",
+                image_url: gifUrl,
                 fields: [
-                    { title: "Branch", value: branch, short: true },
-                    { title: "Repo", value: repo, short: true },
-                    { title: "Env", value: envName, short: true },
-                    { title: "Image", value: imageRef, short: false },
+                    {
+                        title: `${statusEmoji} Status`,
+                        value: statusText,
+                        short: true
+                    },
+                    {
+                        title: "🧠 Branch",
+                        value: branch,
+                        short: true
+                    },
+                    {
+                        title: "👤 Actor",
+                        value: actor,
+                        short: true
+                    },
+                    {
+                        title: "📚 Repository",
+                        value: repo,
+                        short: true
+                    },
+                    {
+                        title: "🌍 Environment",
+                        value: envName,
+                        short: true
+                    },
+                    {
+                        title: "🎯 Target",
+                        value: target,
+                        short: true
+                    },
+                    {
+                        title: "🖼️ Image",
+                        value: imageRef,
+                        short: false
+                    }
                 ],
+                footer: `Deployment finished`,
             },
         ],
     };

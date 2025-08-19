@@ -37,7 +37,6 @@ export async function buildAndPush(opts: {
   for (const a of opts.buildArgs) if (a.trim()) args.push("--build-arg", a);
   for (const l of opts.labels) if (l.trim()) args.push("--label", l);
 
-  // GHA cache
   args.push("--cache-from", "type=gha", "--cache-to", "type=gha,mode=max");
 
   core.info(`Running: docker ${args.join(" ")}`);

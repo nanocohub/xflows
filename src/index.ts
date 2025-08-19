@@ -26,7 +26,6 @@ async function run() {
   const extraImageTags = splitLines(core.getInput("extraImageTags"));
   const extraLabels = splitLines(core.getInput("extraLabels"));
 
-  // ECS inputs
   const ecsCluster = core.getInput("ecsCluster");
   const ecsServiceWeb = core.getInput("ecsServiceWeb");
   const ecsServiceWorker = core.getInput("ecsServiceWorker");
@@ -35,7 +34,6 @@ async function run() {
   const containerWebName = core.getInput("containerWebName") || "web";
   const containerWorkerName = core.getInput("containerWorkerName") || "sidekiq";
 
-  // Slack
   const slackChannelId = core.getInput("slackChannelId");
   const environmentName = core.getInput("environmentName") || "Staging";
   const slackToken = process.env.SLACK_BOT_TOKEN || "";
@@ -49,13 +47,16 @@ async function run() {
     process.env.GITHUB_REF_NAME ??
     "<branch>";
   const runUrl = `${process.env.GITHUB_SERVER_URL}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+  const actor =
+    github.context.actor ??
+    process.env.GITHUB_ACTOR ??
+    "<actor>";
 
-  // Notify start
   if (slackChannelId && slackToken) {
     await slackPost(
       slackToken,
       slackChannelId,
-      startedPayload(environmentName, target, runUrl, branch, repo),
+      startedPayload(environmentName, target, runUrl, branch, repo, actor),
     );
   }
 
@@ -81,9 +82,9 @@ async function run() {
       tags,
       buildArgs,
       labels: [
-        `org.opencontainers.image.revision=${sha}`,
-        `org.opencontainers.image.source=${repo}`,
-        `org.opencontainers.image.version=${branch}`,
+        `revision=${sha}`,
+        `source=${repo}`,
+        `version=${branch}`,
         ...extraLabels,
       ],
     });
@@ -147,6 +148,7 @@ async function run() {
           imageRef,
           branch,
           repo,
+          actor
         ),
       );
     }
@@ -163,6 +165,7 @@ async function run() {
           "<n/a>",
           branch,
           repo,
+          actor
         ),
       );
     }
