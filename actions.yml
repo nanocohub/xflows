@@ -1,0 +1,48 @@
+name: "Container Deploy (ECR → ECS/AppRunner + Slack)"
+description: "Build & push to ECR, then deploy to ECS or App Runner, with Slack notifications"
+author: nanohub
+branding: { color: "green", icon: "upload-cloud" }
+
+inputs:
+  target: { required: true, description: "ecs | apprunner" }
+  awsRegion: { required: true }
+  ecrRepository: { required: true }
+  imageTag: { required: false, default: "staging" }
+
+  # Build
+  buildContext: { required: false, default: "." }
+  dockerfile: { required: false, default: "Dockerfile" }
+  buildTarget: { required: false, default: "" }
+  buildPlatforms: { required: false, default: "" }
+  buildArgs: { required: false, default: "" }
+  extraImageTags: { required: false, default: "" }
+  extraLabels: { required: false, default: "" }
+
+  # ECS
+  ecsCluster: { required: false, default: "" }
+  ecsServiceWeb: { required: false, default: "" }
+  ecsServiceWorker: { required: false, default: "" }
+  taskDefWebPath: { required: false, default: "" }
+  taskDefWorkerPath: { required: false, default: "" }
+  containerWebName: { required: false, default: "web" }
+  containerWorkerName: { required: false, default: "sidekiq" }
+
+  # App Runner
+  appRunnerServiceArn: { required: false, default: "" }
+  appRunnerAccessRoleArn: { required: false, default: "" }
+  appRunnerCpu: { required: false, default: "1 vCPU" }
+  appRunnerMemory: { required: false, default: "2 GB" }
+
+  # Slack
+  slackChannelId: { required: false, default: "" }
+  environmentName: { required: false, default: "Staging" }
+
+outputs:
+  imageDigest:
+    description: "sha256 digest of the pushed image"
+  imageRef:
+    description: "registry/repository@sha256:digest"
+
+runs:
+  using: "node20"
+  main: "dist/index.js"

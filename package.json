@@ -1,0 +1,30 @@
+{
+  "name": "xflows",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "package": "pnpm exec ncc build src/index.ts -o dist",
+    "test": "pnpm exec vitest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.14.0",
+  "dependencies": {
+    "@actions/core": "^1.11.1",
+    "@actions/github": "^6.0.1",
+    "@aws-sdk/client-apprunner": "^3.864.0",
+    "@aws-sdk/client-ecr": "^3.864.0",
+    "@aws-sdk/client-ecs": "^3.864.0",
+    "execa": "^9.6.0",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "@vercel/ncc": "^0.38.3",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}
