@@ -33,6 +33,8 @@ async function run() {
   const taskDefWorkerPath = core.getInput("taskDefWorkerPath");
   const containerWebName = core.getInput("containerWebName") || "web";
   const containerWorkerName = core.getInput("containerWorkerName") || "sidekiq";
+  const skipHealthCheck = core.getBooleanInput("skipHealthCheck") || false;
+  const skipSlackNotify = core.getBooleanInput("skipSlackNotify") || false;
 
   const slackChannelId = core.getInput("slackChannelId");
   const environmentName = core.getInput("environmentName") || "Staging";
@@ -52,7 +54,7 @@ async function run() {
     process.env.GITHUB_ACTOR ??
     "<actor>";
 
-  if (slackChannelId && slackToken) {
+  if (slackChannelId && slackToken && !skipSlackNotify) {
     await slackPost(
       slackToken,
       slackChannelId,
@@ -107,6 +109,7 @@ async function run() {
         containerName: containerWebName,
         taskDefPath: taskDefWebPath,
         imagePinned: imageRef,
+        skipHealthCheck,
       });
       if (ecsServiceWorker && taskDefWorkerPath) {
         await deployEcs({
@@ -116,6 +119,7 @@ async function run() {
           containerName: containerWorkerName,
           taskDefPath: taskDefWorkerPath,
           imagePinned: imageRef,
+          skipHealthCheck,
         });
       }
     } else if (target === "apprunner") {
@@ -137,7 +141,7 @@ async function run() {
       throw new Error(`Unknown target: ${target}`);
     }
 
-    if (slackChannelId && slackToken) {
+    if (slackChannelId && slackToken && !skipSlackNotify) {
       await slackPost(
         slackToken,
         slackChannelId,
@@ -154,7 +158,7 @@ async function run() {
     }
   } catch (err: any) {
     core.setFailed(err?.message || String(err));
-    if (slackChannelId && slackToken) {
+    if (slackChannelId && slackToken && !skipSlackNotify) {
       await slackPost(
         slackToken,
         slackChannelId,
@@ -173,7 +177,7 @@ async function run() {
 }
 
 if (require.main === module) {
-  core.info("[XFLOWS] Starting actions 🚀");
+  core.info("[XFLOWS] Starting actions ");
 
   run().catch((e) => {
     core.setFailed(e?.message ?? String(e));

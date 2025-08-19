@@ -44,6 +44,12 @@ inputs:
       default: "sidekiq",
       description: "worker container name",
     }
+  skipHealthCheck:
+    {
+      required: false,
+      default: false,
+      description: "skip ECS health check to speed up CI/CD workflows",
+    }
 
   # App Runner
   appRunnerServiceArn:
@@ -69,6 +75,12 @@ inputs:
       required: false,
       default: "",
       description: "slack channel id for notifications",
+    }
+  skipSlackNotify:
+    {
+      required: false,
+      default: false,
+      description: "skip Slack notifications to avoid noise in CI/CD workflows",
     }
   environmentName:
     {

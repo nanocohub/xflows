@@ -63514,22 +63514,75 @@ async function deployEcs(params) {
         service: params.service,
         taskDefinition: newFamilyRev,
     }));
-    // Wait for stable (simple poll)
-    for (let i = 0; i < 60; i++) {
+    // Skip health check if requested
+    if (params.skipHealthCheck) {
+        core.info(`Skipping health check for ECS service ${params.cluster}/${params.service} to save time`);
+        core.info(`Task definition update triggered successfully, but deployment stability is not being verified`);
+        core.warning(`⚠️ Note: Skipping health checks may hide deployment issues. Use in CI/CD environments only.`);
+        return;
+    }
+    // Wait for stable (enhanced monitoring with early failure detection)
+    const maxAttempts = 60;
+    const pollingIntervalMs = 5000;
+    const serviceDetails = `${params.cluster}/${params.service}`;
+    core.info(`Waiting for ECS service ${serviceDetails} to stabilize...`);
+    for (let i = 0; i < maxAttempts; i++) {
         const d = await ecs.send(new client_ecs_1.DescribeServicesCommand({
             cluster: params.cluster,
             services: [params.service],
         }));
         const svc = d.services?.[0];
+        if (!svc) {
+            core.error(`Service ${serviceDetails} not found`);
+            throw new Error(`ECS service ${serviceDetails} not found`);
+        }
         const primary = svc?.deployments?.find((x) => x.status === "PRIMARY");
         const pending = svc?.deployments?.some((x) => x.rolloutState === "IN_PROGRESS");
+        // Log detailed information about the deployment status
+        core.info(`Deployment status [${i + 1}/${maxAttempts}]: ${primary?.rolloutState || "UNKNOWN"}`);
+        if (svc.events && svc.events.length > 0) {
+            // Log the latest event
+            core.info(`Latest event: ${svc.events[0].message}`);
+        }
+        // Success case
         if (primary && !pending && primary.rolloutState === "COMPLETED") {
-            core.info(`ECS service ${params.service} is stable`);
+            core.info(`✅ ECS service ${serviceDetails} is stable`);
             return;
         }
-        await new Promise((r) => setTimeout(r, 5000));
+        // Failure detection
+        if (primary && primary.rolloutState === "FAILED") {
+            core.error(`❌ ECS deployment for ${serviceDetails} has failed`);
+            core.error(`Reason: ${primary.rolloutStateReason || "Unknown reason"}`);
+            throw new Error(`ECS deployment failed: ${primary.rolloutStateReason || "Unknown error"}`);
+        }
+        // Check for task failures
+        if (svc.events && svc.events.length > 0) {
+            const recentEvents = svc.events.slice(0, 5);
+            const failureIndicators = recentEvents.some(event => {
+                const msg = event.message?.toLowerCase() || "";
+                return (msg.includes("unhealthy") ||
+                    msg.includes("failed") ||
+                    msg.includes("error") ||
+                    msg.includes("unable to place task"));
+            });
+            if (failureIndicators) {
+                core.warning(`⚠️ Potential issues detected in service ${serviceDetails}:`);
+                recentEvents.forEach(event => {
+                    core.warning(`- ${event.message}`);
+                });
+            }
+        }
+        // Show deployment progress percentages if available
+        if (primary && primary.desiredCount && primary.desiredCount > 0) {
+            const runningCount = primary.runningCount || 0;
+            const desiredCount = primary.desiredCount;
+            const progress = Math.floor((runningCount / desiredCount) * 100);
+            core.info(`Deployment progress: ${progress}% (${runningCount}/${desiredCount} tasks running)`);
+        }
+        await new Promise((r) => setTimeout(r, pollingIntervalMs));
     }
-    core.warning(`Timed out waiting for ECS service ${params.service} to stabilize`);
+    core.error(`⏱️ Timed out after ${maxAttempts * pollingIntervalMs / 60000} minutes waiting for ECS service ${serviceDetails} to stabilize`);
+    throw new Error(`Deployment timeout for ECS service ${serviceDetails}`);
 }
 
 
@@ -63678,6 +63731,7 @@ function splitLines(s) {
         .filter(Boolean);
 }
 async function run() {
+    const stage = core.getInput("stage") || "all";
     const target = core.getInput("target", { required: true });
     const region = core.getInput("awsRegion", { required: true });
     const ecrRepository = core.getInput("ecrRepository", { required: true });
@@ -63696,6 +63750,8 @@ async function run() {
     const taskDefWorkerPath = core.getInput("taskDefWorkerPath");
     const containerWebName = core.getInput("containerWebName") || "web";
     const containerWorkerName = core.getInput("containerWorkerName") || "sidekiq";
+    const skipHealthCheck = core.getBooleanInput("skipHealthCheck") || false;
+    const skipSlackNotify = core.getBooleanInput("skipSlackNotify") || false;
     const slackChannelId = core.getInput("slackChannelId");
     const environmentName = core.getInput("environmentName") || "Staging";
     const slackToken = process.env.SLACK_BOT_TOKEN || "";
@@ -63709,92 +63765,133 @@ async function run() {
     const actor = github.context.actor ??
         process.env.GITHUB_ACTOR ??
         "<actor>";
-    if (slackChannelId && slackToken) {
+    // Stage: notify (started notification)
+    if ((stage === "all" || stage === "notify") && slackChannelId && slackToken && !skipSlackNotify) {
         await (0, slackNotifier_1.slackPost)(slackToken, slackChannelId, (0, slackNotifier_1.startedPayload)(environmentName, target, runUrl, branch, repo, actor));
     }
     try {
         const registry = process.env.AWS_ACCOUNT_ID
             ? `${process.env.AWS_ACCOUNT_ID}.dkr.ecr.${region}.amazonaws.com`
-            : process.env.ECR_REGISTRY || "";
-        const sha = (process.env.GITHUB_SHA || "").slice(0, 40);
-        const baseTagSha = `${registry}/${ecrRepository}:${sha}`;
+            : core.getInput("registry");
+        if (!registry)
+            throw new Error("AWS_ACCOUNT_ID or registry input required");
+        let sha = github.context.sha || "<unknown>";
+        if (sha.length > 7)
+            sha = sha.substring(0, 7);
+        const tags = [imageTag];
+        if (extraImageTags)
+            tags.push(...extraImageTags);
+        // Friendly name like repo:tag format (not the @sha256:abc...)
         const baseTagFriendly = `${registry}/${ecrRepository}:${imageTag}`;
-        const tags = [
-            baseTagSha,
-            baseTagFriendly,
-            ...extraImageTags.map((t) => `${registry}/${ecrRepository}:${t}`),
-        ];
-        await (0, container_1.buildAndPush)({
-            context: buildContext,
-            dockerfile,
-            target: buildTarget || undefined,
-            platforms: buildPlatforms || undefined,
-            tags,
-            buildArgs,
-            labels: [
-                `revision=${sha}`,
-                `source=${repo}`,
-                `version=${branch}`,
-                ...extraLabels,
-            ],
-        });
-        const digest = await (0, container_1.getDigestForTag)(baseTagFriendly);
-        const imageRef = `${registry}/${ecrRepository}@${digest}`;
-        core.setOutput("imageDigest", digest);
-        core.setOutput("imageRef", imageRef);
-        if (target === "ecs") {
-            if (!ecsCluster || !ecsServiceWeb || !taskDefWebPath) {
-                throw new Error("ECS inputs missing: ecsCluster, ecsServiceWeb, taskDefWebPath (and optionally worker)");
-            }
-            await (0, ecs_1.deployEcs)({
-                region,
-                cluster: ecsCluster,
-                service: ecsServiceWeb,
-                containerName: containerWebName,
-                taskDefPath: taskDefWebPath,
-                imagePinned: imageRef,
+        let imageRef = "";
+        let digest = "";
+        // Stage: build
+        if (stage === "all" || stage === "build") {
+            core.info(`🏗️ Running build stage...`);
+            // Build the image with all tags
+            const fullTags = tags.map(tag => `${registry}/${ecrRepository}:${tag}`);
+            await (0, container_1.buildAndPush)({
+                context: buildContext,
+                dockerfile,
+                target: buildTarget || undefined,
+                platforms: buildPlatforms || undefined,
+                tags: fullTags,
+                buildArgs,
+                labels: [
+                    `revision=${sha}`,
+                    `source=${repo}`,
+                    `version=${branch}`,
+                    ...extraLabels,
+                ],
             });
-            if (ecsServiceWorker && taskDefWorkerPath) {
+            digest = await (0, container_1.getDigestForTag)(baseTagFriendly);
+            imageRef = `${registry}/${ecrRepository}@${digest}`;
+            core.setOutput("imageDigest", digest);
+            core.setOutput("imageRef", imageRef);
+            core.info(`📦 Image built and pushed: ${imageRef}`);
+        }
+        else if (stage === "deploy" || stage === "notify") {
+            // If we're only deploying or notifying, we need to get the digest of an existing image
+            try {
+                digest = await (0, container_1.getDigestForTag)(baseTagFriendly);
+                imageRef = `${registry}/${ecrRepository}@${digest}`;
+                core.setOutput("imageDigest", digest);
+                core.setOutput("imageRef", imageRef);
+                core.info(`🔍 Using existing image: ${imageRef}`);
+            }
+            catch (err) {
+                core.warning(`⚠️ Could not find existing image with tag ${imageTag}. This is required for deploy or notify stages.`);
+                throw new Error(`Image with tag ${imageTag} not found. Run build stage first or ensure the image exists.`);
+            }
+        }
+        // Stage: deploy
+        if ((stage === "all" || stage === "deploy") && imageRef) {
+            core.info(`🚀 Running deploy stage...`);
+            if (target === "ecs") {
+                if (!ecsCluster || !ecsServiceWeb || !taskDefWebPath) {
+                    throw new Error("ECS inputs missing: ecsCluster, ecsServiceWeb, taskDefWebPath (and optionally worker)");
+                }
                 await (0, ecs_1.deployEcs)({
                     region,
                     cluster: ecsCluster,
-                    service: ecsServiceWorker,
-                    containerName: containerWorkerName,
-                    taskDefPath: taskDefWorkerPath,
+                    service: ecsServiceWeb,
+                    containerName: containerWebName,
+                    taskDefPath: taskDefWebPath,
                     imagePinned: imageRef,
+                    skipHealthCheck,
                 });
+                if (ecsServiceWorker && taskDefWorkerPath) {
+                    await (0, ecs_1.deployEcs)({
+                        region,
+                        cluster: ecsCluster,
+                        service: ecsServiceWorker,
+                        containerName: containerWorkerName,
+                        taskDefPath: taskDefWorkerPath,
+                        imagePinned: imageRef,
+                        skipHealthCheck,
+                    });
+                }
+            }
+            else if (target === "apprunner") {
+                const serviceArn = core.getInput("appRunnerServiceArn", {
+                    required: true,
+                });
+                const result = await (0, apprunner_1.waitForAppRunnerDeployment)({
+                    region,
+                    serviceArn,
+                    imageRef,
+                    cpu: core.getInput("appRunnerCpu") || "1 vCPU",
+                    memory: core.getInput("appRunnerMemory") || "2 GB",
+                    intervalMs: 60000,
+                });
+                if (result === "FAILED" || result === "UNKNOWN") {
+                    throw new Error(`AppRunner deployment status: ${result}`);
+                }
+            }
+            else {
+                throw new Error(`Unknown target: ${target}`);
             }
         }
-        else if (target === "apprunner") {
-            const serviceArn = core.getInput("appRunnerServiceArn", {
-                required: true,
-            });
-            const result = await (0, apprunner_1.waitForAppRunnerDeployment)({
-                region,
-                serviceArn,
-                maxAttempts: 6,
-                intervalMs: 60000,
-            });
-            if (result === "FAILED" || result === "UNKNOWN") {
-                throw new Error(`AppRunner deployment status: ${result}`);
-            }
+        else if (stage === "deploy" && !imageRef) {
+            throw new Error("Image reference not found. Cannot deploy without building or finding an existing image.");
         }
-        else {
-            throw new Error(`Unknown target: ${target}`);
-        }
-        if (slackChannelId && slackToken) {
-            await (0, slackNotifier_1.slackPost)(slackToken, slackChannelId, (0, slackNotifier_1.finishedPayload)(environmentName, target, "success", imageRef, branch, repo, actor));
+        // Stage: notify (success notification)
+        if ((stage === "all" || stage === "notify") && slackChannelId && slackToken && !skipSlackNotify) {
+            core.info(`📣 Sending success notification...`);
+            await (0, slackNotifier_1.slackPost)(slackToken, slackChannelId, (0, slackNotifier_1.finishedPayload)(environmentName, target, "success", imageRef || "<n/a>", branch, repo, actor));
         }
     }
     catch (err) {
         core.setFailed(err?.message || String(err));
-        if (slackChannelId && slackToken) {
+        // Stage: notify (failure notification)
+        if ((stage === "all" || stage === "notify") && slackChannelId && slackToken && !skipSlackNotify) {
+            core.info(`📣 Sending failure notification...`);
             await (0, slackNotifier_1.slackPost)(slackToken, slackChannelId, (0, slackNotifier_1.finishedPayload)(environmentName, target, "failure", "<n/a>", branch, repo, actor));
         }
     }
 }
 if (require.main === require.cache[eval('__filename')]) {
-    core.info("[XFLOWS] Starting actions 🚀");
+    core.info("[XFLOWS] Starting actions ");
     run().catch((e) => {
         core.setFailed(e?.message ?? String(e));
     });
