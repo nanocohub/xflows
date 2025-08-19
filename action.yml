@@ -1,0 +1,88 @@
+name: "Container Deploy (ECR → ECS/AppRunner + Slack)"
+description: "Build & push to ECR, then deploy to ECS or App Runner, with Slack notifications"
+author: nanocohub
+branding: { color: "green", icon: "upload-cloud" }
+
+inputs:
+  target: { required: true, description: "ecs | apprunner" }
+  awsRegion: { required: true, description: "aws region" }
+  ecrRepository: { required: true, description: "repository of ecr" }
+  imageTag: { required: false, default: "staging", description: "image tag" }
+
+  # Build
+  buildContext: { required: false, default: ".", description: "build context" }
+  dockerfile:
+    { required: false, default: "Dockerfile", description: "dockerfile" }
+  buildTarget: { required: false, default: "", description: "build target" }
+  buildPlatforms:
+    { required: false, default: "", description: "build platforms" }
+  buildArgs: { required: false, default: "", description: "build arguments" }
+  extraImageTags:
+    { required: false, default: "", description: "additional image tags" }
+  extraLabels:
+    { required: false, default: "", description: "additional labels" }
+
+  # ECS
+  ecsCluster: { required: false, default: "", description: "ecs cluster name" }
+  ecsServiceWeb:
+    { required: false, default: "", description: "ecs web service name" }
+  ecsServiceWorker:
+    { required: false, default: "", description: "ecs worker service name" }
+  taskDefWebPath:
+    { required: false, default: "", description: "path to web task definition" }
+  taskDefWorkerPath:
+    {
+      required: false,
+      default: "",
+      description: "path to worker task definition",
+    }
+  containerWebName:
+    { required: false, default: "web", description: "web container name" }
+  containerWorkerName:
+    {
+      required: false,
+      default: "sidekiq",
+      description: "worker container name",
+    }
+
+  # App Runner
+  appRunnerServiceArn:
+    { required: false, default: "", description: "app runner service arn" }
+  appRunnerAccessRoleArn:
+    { required: false, default: "", description: "app runner access role arn" }
+  appRunnerCpu:
+    {
+      required: false,
+      default: "1 vCPU",
+      description: "app runner cpu configuration",
+    }
+  appRunnerMemory:
+    {
+      required: false,
+      default: "2 GB",
+      description: "app runner memory configuration",
+    }
+
+  # Slack
+  slackChannelId:
+    {
+      required: false,
+      default: "",
+      description: "slack channel id for notifications",
+    }
+  environmentName:
+    {
+      required: false,
+      default: "Staging",
+      description: "environment name for notifications",
+    }
+
+outputs:
+  imageDigest:
+    description: "sha256 digest of the pushed image"
+  imageRef:
+    description: "registry/repository@sha256:digest"
+
+runs:
+  using: "node20"
+  main: "dist/index.js"
