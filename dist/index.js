@@ -5981,6 +5981,4119 @@ exports.getRuntimeConfig = getRuntimeConfig;
 
 /***/ }),
 
+/***/ 6166:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.resolveHttpAuthSchemeConfig = exports.defaultECRHttpAuthSchemeProvider = exports.defaultECRHttpAuthSchemeParametersProvider = void 0;
+const core_1 = __nccwpck_require__(727);
+const util_middleware_1 = __nccwpck_require__(8411);
+const defaultECRHttpAuthSchemeParametersProvider = async (config, context, input) => {
+    return {
+        operation: (0, util_middleware_1.getSmithyContext)(context).operation,
+        region: (await (0, util_middleware_1.normalizeProvider)(config.region)()) ||
+            (() => {
+                throw new Error("expected `region` to be configured for `aws.auth#sigv4`");
+            })(),
+    };
+};
+exports.defaultECRHttpAuthSchemeParametersProvider = defaultECRHttpAuthSchemeParametersProvider;
+function createAwsAuthSigv4HttpAuthOption(authParameters) {
+    return {
+        schemeId: "aws.auth#sigv4",
+        signingProperties: {
+            name: "ecr",
+            region: authParameters.region,
+        },
+        propertiesExtractor: (config, context) => ({
+            signingProperties: {
+                config,
+                context,
+            },
+        }),
+    };
+}
+const defaultECRHttpAuthSchemeProvider = (authParameters) => {
+    const options = [];
+    switch (authParameters.operation) {
+        default: {
+            options.push(createAwsAuthSigv4HttpAuthOption(authParameters));
+        }
+    }
+    return options;
+};
+exports.defaultECRHttpAuthSchemeProvider = defaultECRHttpAuthSchemeProvider;
+const resolveHttpAuthSchemeConfig = (config) => {
+    const config_0 = (0, core_1.resolveAwsSdkSigV4Config)(config);
+    return Object.assign(config_0, {
+        authSchemePreference: (0, util_middleware_1.normalizeProvider)(config.authSchemePreference ?? []),
+    });
+};
+exports.resolveHttpAuthSchemeConfig = resolveHttpAuthSchemeConfig;
+
+
+/***/ }),
+
+/***/ 9616:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.defaultEndpointResolver = void 0;
+const util_endpoints_1 = __nccwpck_require__(1209);
+const util_endpoints_2 = __nccwpck_require__(4120);
+const ruleset_1 = __nccwpck_require__(4141);
+const cache = new util_endpoints_2.EndpointCache({
+    size: 50,
+    params: ["Endpoint", "Region", "UseDualStack", "UseFIPS"],
+});
+const defaultEndpointResolver = (endpointParams, context = {}) => {
+    return cache.get(endpointParams, () => (0, util_endpoints_2.resolveEndpoint)(ruleset_1.ruleSet, {
+        endpointParams: endpointParams,
+        logger: context.logger,
+    }));
+};
+exports.defaultEndpointResolver = defaultEndpointResolver;
+util_endpoints_2.customEndpointFunctions.aws = util_endpoints_1.awsEndpointFunctions;
+
+
+/***/ }),
+
+/***/ 4141:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ruleSet = void 0;
+const B = "required", C = "fn", D = "argv", E = "ref", F = "url", G = "properties", H = "headers";
+const a = true, b = "isSet", c = "booleanEquals", d = "error", e = "endpoint", f = "tree", g = "PartitionResult", h = "stringEquals", i = "aws", j = "aws-us-gov", k = { [B]: false, "type": "String" }, l = { [B]: true, "default": false, "type": "Boolean" }, m = { [E]: "Endpoint" }, n = { [C]: c, [D]: [{ [E]: "UseFIPS" }, true] }, o = { [C]: c, [D]: [{ [E]: "UseDualStack" }, true] }, p = {}, q = { [C]: "getAttr", [D]: [{ [E]: g }, "supportsFIPS"] }, r = { [C]: c, [D]: [true, { [C]: "getAttr", [D]: [{ [E]: g }, "supportsDualStack"] }] }, s = { [C]: "getAttr", [D]: [{ [E]: g }, "name"] }, t = { [F]: "https://ecr-fips.{Region}.api.aws", [G]: {}, [H]: {} }, u = { [F]: "https://ecr-fips.{Region}.amazonaws.com", [G]: {}, [H]: {} }, v = { [F]: "https://ecr.{Region}.api.aws", [G]: {}, [H]: {} }, w = [n], x = [o], y = [{ [E]: "Region" }], z = [{ [C]: h, [D]: [i, s] }], A = [{ [C]: h, [D]: [j, s] }];
+const _data = { version: "1.0", parameters: { Region: k, UseDualStack: l, UseFIPS: l, Endpoint: k }, rules: [{ conditions: [{ [C]: b, [D]: [m] }], rules: [{ conditions: w, error: "Invalid Configuration: FIPS and custom endpoint are not supported", type: d }, { conditions: x, error: "Invalid Configuration: Dualstack and custom endpoint are not supported", type: d }, { endpoint: { [F]: m, [G]: p, [H]: p }, type: e }], type: f }, { conditions: [{ [C]: b, [D]: y }], rules: [{ conditions: [{ [C]: "aws.partition", [D]: y, assign: g }], rules: [{ conditions: [n, o], rules: [{ conditions: [{ [C]: c, [D]: [a, q] }, r], rules: [{ conditions: z, endpoint: t, type: e }, { conditions: A, endpoint: t, type: e }, { endpoint: { [F]: "https://api.ecr-fips.{Region}.{PartitionResult#dualStackDnsSuffix}", [G]: p, [H]: p }, type: e }], type: f }, { error: "FIPS and DualStack are enabled, but this partition does not support one or both", type: d }], type: f }, { conditions: w, rules: [{ conditions: [{ [C]: c, [D]: [q, a] }], rules: [{ conditions: [{ [C]: h, [D]: [s, i] }], endpoint: u, type: e }, { conditions: [{ [C]: h, [D]: [s, j] }], endpoint: u, type: e }, { endpoint: { [F]: "https://api.ecr-fips.{Region}.{PartitionResult#dnsSuffix}", [G]: p, [H]: p }, type: e }], type: f }, { error: "FIPS is enabled but this partition does not support FIPS", type: d }], type: f }, { conditions: x, rules: [{ conditions: [r], rules: [{ conditions: z, endpoint: v, type: e }, { conditions: [{ [C]: h, [D]: ["aws-cn", s] }], endpoint: { [F]: "https://ecr.{Region}.api.amazonwebservices.com.cn", [G]: p, [H]: p }, type: e }, { conditions: A, endpoint: v, type: e }, { endpoint: { [F]: "https://api.ecr.{Region}.{PartitionResult#dualStackDnsSuffix}", [G]: p, [H]: p }, type: e }], type: f }, { error: "DualStack is enabled but this partition does not support DualStack", type: d }], type: f }, { endpoint: { [F]: "https://api.ecr.{Region}.{PartitionResult#dnsSuffix}", [G]: p, [H]: p }, type: e }], type: f }], type: f }, { error: "Invalid Configuration: Missing Region", type: d }] };
+exports.ruleSet = _data;
+
+
+/***/ }),
+
+/***/ 7077:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+// src/index.ts
+var index_exports = {};
+__export(index_exports, {
+  BatchCheckLayerAvailabilityCommand: () => BatchCheckLayerAvailabilityCommand,
+  BatchDeleteImageCommand: () => BatchDeleteImageCommand,
+  BatchGetImageCommand: () => BatchGetImageCommand,
+  BatchGetRepositoryScanningConfigurationCommand: () => BatchGetRepositoryScanningConfigurationCommand,
+  CompleteLayerUploadCommand: () => CompleteLayerUploadCommand,
+  CreatePullThroughCacheRuleCommand: () => CreatePullThroughCacheRuleCommand,
+  CreateRepositoryCommand: () => CreateRepositoryCommand,
+  CreateRepositoryCreationTemplateCommand: () => CreateRepositoryCreationTemplateCommand,
+  DeleteLifecyclePolicyCommand: () => DeleteLifecyclePolicyCommand,
+  DeletePullThroughCacheRuleCommand: () => DeletePullThroughCacheRuleCommand,
+  DeleteRegistryPolicyCommand: () => DeleteRegistryPolicyCommand,
+  DeleteRepositoryCommand: () => DeleteRepositoryCommand,
+  DeleteRepositoryCreationTemplateCommand: () => DeleteRepositoryCreationTemplateCommand,
+  DeleteRepositoryPolicyCommand: () => DeleteRepositoryPolicyCommand,
+  DescribeImageReplicationStatusCommand: () => DescribeImageReplicationStatusCommand,
+  DescribeImageScanFindingsCommand: () => DescribeImageScanFindingsCommand,
+  DescribeImagesCommand: () => DescribeImagesCommand,
+  DescribePullThroughCacheRulesCommand: () => DescribePullThroughCacheRulesCommand,
+  DescribeRegistryCommand: () => DescribeRegistryCommand,
+  DescribeRepositoriesCommand: () => DescribeRepositoriesCommand,
+  DescribeRepositoryCreationTemplatesCommand: () => DescribeRepositoryCreationTemplatesCommand,
+  ECR: () => ECR,
+  ECRClient: () => ECRClient,
+  ECRServiceException: () => ECRServiceException,
+  EmptyUploadException: () => EmptyUploadException,
+  EncryptionType: () => EncryptionType,
+  FindingSeverity: () => FindingSeverity,
+  GetAccountSettingCommand: () => GetAccountSettingCommand,
+  GetAuthorizationTokenCommand: () => GetAuthorizationTokenCommand,
+  GetDownloadUrlForLayerCommand: () => GetDownloadUrlForLayerCommand,
+  GetLifecyclePolicyCommand: () => GetLifecyclePolicyCommand,
+  GetLifecyclePolicyPreviewCommand: () => GetLifecyclePolicyPreviewCommand,
+  GetRegistryPolicyCommand: () => GetRegistryPolicyCommand,
+  GetRegistryScanningConfigurationCommand: () => GetRegistryScanningConfigurationCommand,
+  GetRepositoryPolicyCommand: () => GetRepositoryPolicyCommand,
+  ImageActionType: () => ImageActionType,
+  ImageAlreadyExistsException: () => ImageAlreadyExistsException,
+  ImageDigestDoesNotMatchException: () => ImageDigestDoesNotMatchException,
+  ImageFailureCode: () => ImageFailureCode,
+  ImageNotFoundException: () => ImageNotFoundException,
+  ImageTagAlreadyExistsException: () => ImageTagAlreadyExistsException,
+  ImageTagMutability: () => ImageTagMutability,
+  ImageTagMutabilityExclusionFilterType: () => ImageTagMutabilityExclusionFilterType,
+  InitiateLayerUploadCommand: () => InitiateLayerUploadCommand,
+  InvalidLayerException: () => InvalidLayerException,
+  InvalidLayerPartException: () => InvalidLayerPartException,
+  InvalidParameterException: () => InvalidParameterException,
+  InvalidTagParameterException: () => InvalidTagParameterException,
+  KmsException: () => KmsException,
+  LayerAlreadyExistsException: () => LayerAlreadyExistsException,
+  LayerAvailability: () => LayerAvailability,
+  LayerFailureCode: () => LayerFailureCode,
+  LayerInaccessibleException: () => LayerInaccessibleException,
+  LayerPartTooSmallException: () => LayerPartTooSmallException,
+  LayersNotFoundException: () => LayersNotFoundException,
+  LifecyclePolicyNotFoundException: () => LifecyclePolicyNotFoundException,
+  LifecyclePolicyPreviewInProgressException: () => LifecyclePolicyPreviewInProgressException,
+  LifecyclePolicyPreviewNotFoundException: () => LifecyclePolicyPreviewNotFoundException,
+  LifecyclePolicyPreviewStatus: () => LifecyclePolicyPreviewStatus,
+  LimitExceededException: () => LimitExceededException,
+  ListImagesCommand: () => ListImagesCommand,
+  ListTagsForResourceCommand: () => ListTagsForResourceCommand,
+  PullThroughCacheRuleAlreadyExistsException: () => PullThroughCacheRuleAlreadyExistsException,
+  PullThroughCacheRuleNotFoundException: () => PullThroughCacheRuleNotFoundException,
+  PutAccountSettingCommand: () => PutAccountSettingCommand,
+  PutImageCommand: () => PutImageCommand,
+  PutImageScanningConfigurationCommand: () => PutImageScanningConfigurationCommand,
+  PutImageTagMutabilityCommand: () => PutImageTagMutabilityCommand,
+  PutLifecyclePolicyCommand: () => PutLifecyclePolicyCommand,
+  PutRegistryPolicyCommand: () => PutRegistryPolicyCommand,
+  PutRegistryScanningConfigurationCommand: () => PutRegistryScanningConfigurationCommand,
+  PutReplicationConfigurationCommand: () => PutReplicationConfigurationCommand,
+  RCTAppliedFor: () => RCTAppliedFor,
+  ReferencedImagesNotFoundException: () => ReferencedImagesNotFoundException,
+  RegistryPolicyNotFoundException: () => RegistryPolicyNotFoundException,
+  ReplicationStatus: () => ReplicationStatus,
+  RepositoryAlreadyExistsException: () => RepositoryAlreadyExistsException,
+  RepositoryFilterType: () => RepositoryFilterType,
+  RepositoryNotEmptyException: () => RepositoryNotEmptyException,
+  RepositoryNotFoundException: () => RepositoryNotFoundException,
+  RepositoryPolicyNotFoundException: () => RepositoryPolicyNotFoundException,
+  ScanFrequency: () => ScanFrequency,
+  ScanNotFoundException: () => ScanNotFoundException,
+  ScanStatus: () => ScanStatus,
+  ScanType: () => ScanType,
+  ScanningConfigurationFailureCode: () => ScanningConfigurationFailureCode,
+  ScanningRepositoryFilterType: () => ScanningRepositoryFilterType,
+  SecretNotFoundException: () => SecretNotFoundException,
+  ServerException: () => ServerException,
+  SetRepositoryPolicyCommand: () => SetRepositoryPolicyCommand,
+  StartImageScanCommand: () => StartImageScanCommand,
+  StartLifecyclePolicyPreviewCommand: () => StartLifecyclePolicyPreviewCommand,
+  TagResourceCommand: () => TagResourceCommand,
+  TagStatus: () => TagStatus,
+  TemplateAlreadyExistsException: () => TemplateAlreadyExistsException,
+  TemplateNotFoundException: () => TemplateNotFoundException,
+  TooManyTagsException: () => TooManyTagsException,
+  UnableToAccessSecretException: () => UnableToAccessSecretException,
+  UnableToDecryptSecretValueException: () => UnableToDecryptSecretValueException,
+  UnableToGetUpstreamImageException: () => UnableToGetUpstreamImageException,
+  UnableToGetUpstreamLayerException: () => UnableToGetUpstreamLayerException,
+  UnsupportedImageTypeException: () => UnsupportedImageTypeException,
+  UnsupportedUpstreamRegistryException: () => UnsupportedUpstreamRegistryException,
+  UntagResourceCommand: () => UntagResourceCommand,
+  UpdatePullThroughCacheRuleCommand: () => UpdatePullThroughCacheRuleCommand,
+  UpdateRepositoryCreationTemplateCommand: () => UpdateRepositoryCreationTemplateCommand,
+  UploadLayerPartCommand: () => UploadLayerPartCommand,
+  UploadNotFoundException: () => UploadNotFoundException,
+  UpstreamRegistry: () => UpstreamRegistry,
+  ValidatePullThroughCacheRuleCommand: () => ValidatePullThroughCacheRuleCommand,
+  ValidationException: () => ValidationException,
+  __Client: () => import_smithy_client.Client,
+  paginateDescribeImageScanFindings: () => paginateDescribeImageScanFindings,
+  paginateDescribeImages: () => paginateDescribeImages,
+  paginateDescribePullThroughCacheRules: () => paginateDescribePullThroughCacheRules,
+  paginateDescribeRepositories: () => paginateDescribeRepositories,
+  paginateDescribeRepositoryCreationTemplates: () => paginateDescribeRepositoryCreationTemplates,
+  paginateGetLifecyclePolicyPreview: () => paginateGetLifecyclePolicyPreview,
+  paginateListImages: () => paginateListImages,
+  waitForImageScanComplete: () => waitForImageScanComplete,
+  waitForLifecyclePolicyPreviewComplete: () => waitForLifecyclePolicyPreviewComplete,
+  waitUntilImageScanComplete: () => waitUntilImageScanComplete,
+  waitUntilLifecyclePolicyPreviewComplete: () => waitUntilLifecyclePolicyPreviewComplete
+});
+module.exports = __toCommonJS(index_exports);
+
+// src/ECRClient.ts
+var import_middleware_host_header = __nccwpck_require__(7117);
+var import_middleware_logger = __nccwpck_require__(9659);
+var import_middleware_recursion_detection = __nccwpck_require__(6569);
+var import_middleware_user_agent = __nccwpck_require__(5349);
+var import_config_resolver = __nccwpck_require__(9756);
+var import_core = __nccwpck_require__(99);
+var import_middleware_content_length = __nccwpck_require__(3015);
+var import_middleware_endpoint = __nccwpck_require__(7776);
+var import_middleware_retry = __nccwpck_require__(1121);
+
+var import_httpAuthSchemeProvider = __nccwpck_require__(6166);
+
+// src/endpoint/EndpointParameters.ts
+var resolveClientEndpointParameters = /* @__PURE__ */ __name((options) => {
+  return Object.assign(options, {
+    useDualstackEndpoint: options.useDualstackEndpoint ?? false,
+    useFipsEndpoint: options.useFipsEndpoint ?? false,
+    defaultSigningName: "ecr"
+  });
+}, "resolveClientEndpointParameters");
+var commonParams = {
+  UseFIPS: { type: "builtInParams", name: "useFipsEndpoint" },
+  Endpoint: { type: "builtInParams", name: "endpoint" },
+  Region: { type: "builtInParams", name: "region" },
+  UseDualStack: { type: "builtInParams", name: "useDualstackEndpoint" }
+};
+
+// src/ECRClient.ts
+var import_runtimeConfig = __nccwpck_require__(2095);
+
+// src/runtimeExtensions.ts
+var import_region_config_resolver = __nccwpck_require__(3507);
+var import_protocol_http = __nccwpck_require__(8261);
+var import_smithy_client = __nccwpck_require__(4821);
+
+// src/auth/httpAuthExtensionConfiguration.ts
+var getHttpAuthExtensionConfiguration = /* @__PURE__ */ __name((runtimeConfig) => {
+  const _httpAuthSchemes = runtimeConfig.httpAuthSchemes;
+  let _httpAuthSchemeProvider = runtimeConfig.httpAuthSchemeProvider;
+  let _credentials = runtimeConfig.credentials;
+  return {
+    setHttpAuthScheme(httpAuthScheme) {
+      const index = _httpAuthSchemes.findIndex((scheme) => scheme.schemeId === httpAuthScheme.schemeId);
+      if (index === -1) {
+        _httpAuthSchemes.push(httpAuthScheme);
+      } else {
+        _httpAuthSchemes.splice(index, 1, httpAuthScheme);
+      }
+    },
+    httpAuthSchemes() {
+      return _httpAuthSchemes;
+    },
+    setHttpAuthSchemeProvider(httpAuthSchemeProvider) {
+      _httpAuthSchemeProvider = httpAuthSchemeProvider;
+    },
+    httpAuthSchemeProvider() {
+      return _httpAuthSchemeProvider;
+    },
+    setCredentials(credentials) {
+      _credentials = credentials;
+    },
+    credentials() {
+      return _credentials;
+    }
+  };
+}, "getHttpAuthExtensionConfiguration");
+var resolveHttpAuthRuntimeConfig = /* @__PURE__ */ __name((config) => {
+  return {
+    httpAuthSchemes: config.httpAuthSchemes(),
+    httpAuthSchemeProvider: config.httpAuthSchemeProvider(),
+    credentials: config.credentials()
+  };
+}, "resolveHttpAuthRuntimeConfig");
+
+// src/runtimeExtensions.ts
+var resolveRuntimeExtensions = /* @__PURE__ */ __name((runtimeConfig, extensions) => {
+  const extensionConfiguration = Object.assign(
+    (0, import_region_config_resolver.getAwsRegionExtensionConfiguration)(runtimeConfig),
+    (0, import_smithy_client.getDefaultExtensionConfiguration)(runtimeConfig),
+    (0, import_protocol_http.getHttpHandlerExtensionConfiguration)(runtimeConfig),
+    getHttpAuthExtensionConfiguration(runtimeConfig)
+  );
+  extensions.forEach((extension) => extension.configure(extensionConfiguration));
+  return Object.assign(
+    runtimeConfig,
+    (0, import_region_config_resolver.resolveAwsRegionExtensionConfiguration)(extensionConfiguration),
+    (0, import_smithy_client.resolveDefaultRuntimeConfig)(extensionConfiguration),
+    (0, import_protocol_http.resolveHttpHandlerRuntimeConfig)(extensionConfiguration),
+    resolveHttpAuthRuntimeConfig(extensionConfiguration)
+  );
+}, "resolveRuntimeExtensions");
+
+// src/ECRClient.ts
+var ECRClient = class extends import_smithy_client.Client {
+  static {
+    __name(this, "ECRClient");
+  }
+  /**
+   * The resolved configuration of ECRClient class. This is resolved and normalized from the {@link ECRClientConfig | constructor configuration interface}.
+   */
+  config;
+  constructor(...[configuration]) {
+    const _config_0 = (0, import_runtimeConfig.getRuntimeConfig)(configuration || {});
+    super(_config_0);
+    this.initConfig = _config_0;
+    const _config_1 = resolveClientEndpointParameters(_config_0);
+    const _config_2 = (0, import_middleware_user_agent.resolveUserAgentConfig)(_config_1);
+    const _config_3 = (0, import_middleware_retry.resolveRetryConfig)(_config_2);
+    const _config_4 = (0, import_config_resolver.resolveRegionConfig)(_config_3);
+    const _config_5 = (0, import_middleware_host_header.resolveHostHeaderConfig)(_config_4);
+    const _config_6 = (0, import_middleware_endpoint.resolveEndpointConfig)(_config_5);
+    const _config_7 = (0, import_httpAuthSchemeProvider.resolveHttpAuthSchemeConfig)(_config_6);
+    const _config_8 = resolveRuntimeExtensions(_config_7, configuration?.extensions || []);
+    this.config = _config_8;
+    this.middlewareStack.use((0, import_middleware_user_agent.getUserAgentPlugin)(this.config));
+    this.middlewareStack.use((0, import_middleware_retry.getRetryPlugin)(this.config));
+    this.middlewareStack.use((0, import_middleware_content_length.getContentLengthPlugin)(this.config));
+    this.middlewareStack.use((0, import_middleware_host_header.getHostHeaderPlugin)(this.config));
+    this.middlewareStack.use((0, import_middleware_logger.getLoggerPlugin)(this.config));
+    this.middlewareStack.use((0, import_middleware_recursion_detection.getRecursionDetectionPlugin)(this.config));
+    this.middlewareStack.use(
+      (0, import_core.getHttpAuthSchemeEndpointRuleSetPlugin)(this.config, {
+        httpAuthSchemeParametersProvider: import_httpAuthSchemeProvider.defaultECRHttpAuthSchemeParametersProvider,
+        identityProviderConfigProvider: /* @__PURE__ */ __name(async (config) => new import_core.DefaultIdentityProviderConfig({
+          "aws.auth#sigv4": config.credentials
+        }), "identityProviderConfigProvider")
+      })
+    );
+    this.middlewareStack.use((0, import_core.getHttpSigningPlugin)(this.config));
+  }
+  /**
+   * Destroy underlying resources, like sockets. It's usually not necessary to do this.
+   * However in Node.js, it's best to explicitly shut down the client's agent when it is no longer needed.
+   * Otherwise, sockets might stay open for quite a long time before the server terminates them.
+   */
+  destroy() {
+    super.destroy();
+  }
+};
+
+// src/ECR.ts
+
+
+// src/commands/BatchCheckLayerAvailabilityCommand.ts
+
+var import_middleware_serde = __nccwpck_require__(1381);
+
+
+// src/protocols/Aws_json1_1.ts
+var import_core2 = __nccwpck_require__(727);
+
+
+
+// src/models/ECRServiceException.ts
+
+var ECRServiceException = class _ECRServiceException extends import_smithy_client.ServiceException {
+  static {
+    __name(this, "ECRServiceException");
+  }
+  /**
+   * @internal
+   */
+  constructor(options) {
+    super(options);
+    Object.setPrototypeOf(this, _ECRServiceException.prototype);
+  }
+};
+
+// src/models/models_0.ts
+var LayerFailureCode = {
+  InvalidLayerDigest: "InvalidLayerDigest",
+  MissingLayerDigest: "MissingLayerDigest"
+};
+var LayerAvailability = {
+  AVAILABLE: "AVAILABLE",
+  UNAVAILABLE: "UNAVAILABLE"
+};
+var InvalidParameterException = class _InvalidParameterException extends ECRServiceException {
+  static {
+    __name(this, "InvalidParameterException");
+  }
+  name = "InvalidParameterException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "InvalidParameterException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _InvalidParameterException.prototype);
+  }
+};
+var RepositoryNotFoundException = class _RepositoryNotFoundException extends ECRServiceException {
+  static {
+    __name(this, "RepositoryNotFoundException");
+  }
+  name = "RepositoryNotFoundException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "RepositoryNotFoundException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _RepositoryNotFoundException.prototype);
+  }
+};
+var ServerException = class _ServerException extends ECRServiceException {
+  static {
+    __name(this, "ServerException");
+  }
+  name = "ServerException";
+  $fault = "server";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "ServerException",
+      $fault: "server",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _ServerException.prototype);
+  }
+};
+var ImageFailureCode = {
+  ImageNotFound: "ImageNotFound",
+  ImageReferencedByManifestList: "ImageReferencedByManifestList",
+  ImageTagDoesNotMatchDigest: "ImageTagDoesNotMatchDigest",
+  InvalidImageDigest: "InvalidImageDigest",
+  InvalidImageTag: "InvalidImageTag",
+  KmsError: "KmsError",
+  MissingDigestAndTag: "MissingDigestAndTag",
+  UpstreamAccessDenied: "UpstreamAccessDenied",
+  UpstreamTooManyRequests: "UpstreamTooManyRequests",
+  UpstreamUnavailable: "UpstreamUnavailable"
+};
+var LimitExceededException = class _LimitExceededException extends ECRServiceException {
+  static {
+    __name(this, "LimitExceededException");
+  }
+  name = "LimitExceededException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "LimitExceededException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _LimitExceededException.prototype);
+  }
+};
+var UnableToGetUpstreamImageException = class _UnableToGetUpstreamImageException extends ECRServiceException {
+  static {
+    __name(this, "UnableToGetUpstreamImageException");
+  }
+  name = "UnableToGetUpstreamImageException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "UnableToGetUpstreamImageException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _UnableToGetUpstreamImageException.prototype);
+  }
+};
+var ScanningConfigurationFailureCode = {
+  REPOSITORY_NOT_FOUND: "REPOSITORY_NOT_FOUND"
+};
+var ScanningRepositoryFilterType = {
+  WILDCARD: "WILDCARD"
+};
+var ScanFrequency = {
+  CONTINUOUS_SCAN: "CONTINUOUS_SCAN",
+  MANUAL: "MANUAL",
+  SCAN_ON_PUSH: "SCAN_ON_PUSH"
+};
+var ValidationException = class _ValidationException extends ECRServiceException {
+  static {
+    __name(this, "ValidationException");
+  }
+  name = "ValidationException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "ValidationException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _ValidationException.prototype);
+  }
+};
+var EmptyUploadException = class _EmptyUploadException extends ECRServiceException {
+  static {
+    __name(this, "EmptyUploadException");
+  }
+  name = "EmptyUploadException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "EmptyUploadException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _EmptyUploadException.prototype);
+  }
+};
+var InvalidLayerException = class _InvalidLayerException extends ECRServiceException {
+  static {
+    __name(this, "InvalidLayerException");
+  }
+  name = "InvalidLayerException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "InvalidLayerException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _InvalidLayerException.prototype);
+  }
+};
+var KmsException = class _KmsException extends ECRServiceException {
+  static {
+    __name(this, "KmsException");
+  }
+  name = "KmsException";
+  $fault = "client";
+  /**
+   * <p>The error code returned by KMS.</p>
+   * @public
+   */
+  kmsError;
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "KmsException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _KmsException.prototype);
+    this.kmsError = opts.kmsError;
+  }
+};
+var LayerAlreadyExistsException = class _LayerAlreadyExistsException extends ECRServiceException {
+  static {
+    __name(this, "LayerAlreadyExistsException");
+  }
+  name = "LayerAlreadyExistsException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "LayerAlreadyExistsException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _LayerAlreadyExistsException.prototype);
+  }
+};
+var LayerPartTooSmallException = class _LayerPartTooSmallException extends ECRServiceException {
+  static {
+    __name(this, "LayerPartTooSmallException");
+  }
+  name = "LayerPartTooSmallException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "LayerPartTooSmallException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _LayerPartTooSmallException.prototype);
+  }
+};
+var UploadNotFoundException = class _UploadNotFoundException extends ECRServiceException {
+  static {
+    __name(this, "UploadNotFoundException");
+  }
+  name = "UploadNotFoundException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "UploadNotFoundException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _UploadNotFoundException.prototype);
+  }
+};
+var UpstreamRegistry = {
+  AzureContainerRegistry: "azure-container-registry",
+  DockerHub: "docker-hub",
+  Ecr: "ecr",
+  EcrPublic: "ecr-public",
+  GitHubContainerRegistry: "github-container-registry",
+  GitLabContainerRegistry: "gitlab-container-registry",
+  K8s: "k8s",
+  Quay: "quay"
+};
+var PullThroughCacheRuleAlreadyExistsException = class _PullThroughCacheRuleAlreadyExistsException extends ECRServiceException {
+  static {
+    __name(this, "PullThroughCacheRuleAlreadyExistsException");
+  }
+  name = "PullThroughCacheRuleAlreadyExistsException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "PullThroughCacheRuleAlreadyExistsException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _PullThroughCacheRuleAlreadyExistsException.prototype);
+  }
+};
+var SecretNotFoundException = class _SecretNotFoundException extends ECRServiceException {
+  static {
+    __name(this, "SecretNotFoundException");
+  }
+  name = "SecretNotFoundException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "SecretNotFoundException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _SecretNotFoundException.prototype);
+  }
+};
+var UnableToAccessSecretException = class _UnableToAccessSecretException extends ECRServiceException {
+  static {
+    __name(this, "UnableToAccessSecretException");
+  }
+  name = "UnableToAccessSecretException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "UnableToAccessSecretException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _UnableToAccessSecretException.prototype);
+  }
+};
+var UnableToDecryptSecretValueException = class _UnableToDecryptSecretValueException extends ECRServiceException {
+  static {
+    __name(this, "UnableToDecryptSecretValueException");
+  }
+  name = "UnableToDecryptSecretValueException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "UnableToDecryptSecretValueException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _UnableToDecryptSecretValueException.prototype);
+  }
+};
+var UnsupportedUpstreamRegistryException = class _UnsupportedUpstreamRegistryException extends ECRServiceException {
+  static {
+    __name(this, "UnsupportedUpstreamRegistryException");
+  }
+  name = "UnsupportedUpstreamRegistryException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "UnsupportedUpstreamRegistryException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _UnsupportedUpstreamRegistryException.prototype);
+  }
+};
+var EncryptionType = {
+  AES256: "AES256",
+  KMS: "KMS",
+  KMS_DSSE: "KMS_DSSE"
+};
+var ImageTagMutability = {
+  IMMUTABLE: "IMMUTABLE",
+  IMMUTABLE_WITH_EXCLUSION: "IMMUTABLE_WITH_EXCLUSION",
+  MUTABLE: "MUTABLE",
+  MUTABLE_WITH_EXCLUSION: "MUTABLE_WITH_EXCLUSION"
+};
+var ImageTagMutabilityExclusionFilterType = {
+  WILDCARD: "WILDCARD"
+};
+var InvalidTagParameterException = class _InvalidTagParameterException extends ECRServiceException {
+  static {
+    __name(this, "InvalidTagParameterException");
+  }
+  name = "InvalidTagParameterException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "InvalidTagParameterException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _InvalidTagParameterException.prototype);
+  }
+};
+var RepositoryAlreadyExistsException = class _RepositoryAlreadyExistsException extends ECRServiceException {
+  static {
+    __name(this, "RepositoryAlreadyExistsException");
+  }
+  name = "RepositoryAlreadyExistsException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "RepositoryAlreadyExistsException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _RepositoryAlreadyExistsException.prototype);
+  }
+};
+var TooManyTagsException = class _TooManyTagsException extends ECRServiceException {
+  static {
+    __name(this, "TooManyTagsException");
+  }
+  name = "TooManyTagsException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "TooManyTagsException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _TooManyTagsException.prototype);
+  }
+};
+var RCTAppliedFor = {
+  PULL_THROUGH_CACHE: "PULL_THROUGH_CACHE",
+  REPLICATION: "REPLICATION"
+};
+var TemplateAlreadyExistsException = class _TemplateAlreadyExistsException extends ECRServiceException {
+  static {
+    __name(this, "TemplateAlreadyExistsException");
+  }
+  name = "TemplateAlreadyExistsException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "TemplateAlreadyExistsException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _TemplateAlreadyExistsException.prototype);
+  }
+};
+var LifecyclePolicyNotFoundException = class _LifecyclePolicyNotFoundException extends ECRServiceException {
+  static {
+    __name(this, "LifecyclePolicyNotFoundException");
+  }
+  name = "LifecyclePolicyNotFoundException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "LifecyclePolicyNotFoundException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _LifecyclePolicyNotFoundException.prototype);
+  }
+};
+var PullThroughCacheRuleNotFoundException = class _PullThroughCacheRuleNotFoundException extends ECRServiceException {
+  static {
+    __name(this, "PullThroughCacheRuleNotFoundException");
+  }
+  name = "PullThroughCacheRuleNotFoundException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "PullThroughCacheRuleNotFoundException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _PullThroughCacheRuleNotFoundException.prototype);
+  }
+};
+var RegistryPolicyNotFoundException = class _RegistryPolicyNotFoundException extends ECRServiceException {
+  static {
+    __name(this, "RegistryPolicyNotFoundException");
+  }
+  name = "RegistryPolicyNotFoundException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "RegistryPolicyNotFoundException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _RegistryPolicyNotFoundException.prototype);
+  }
+};
+var RepositoryNotEmptyException = class _RepositoryNotEmptyException extends ECRServiceException {
+  static {
+    __name(this, "RepositoryNotEmptyException");
+  }
+  name = "RepositoryNotEmptyException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "RepositoryNotEmptyException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _RepositoryNotEmptyException.prototype);
+  }
+};
+var TemplateNotFoundException = class _TemplateNotFoundException extends ECRServiceException {
+  static {
+    __name(this, "TemplateNotFoundException");
+  }
+  name = "TemplateNotFoundException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "TemplateNotFoundException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _TemplateNotFoundException.prototype);
+  }
+};
+var RepositoryPolicyNotFoundException = class _RepositoryPolicyNotFoundException extends ECRServiceException {
+  static {
+    __name(this, "RepositoryPolicyNotFoundException");
+  }
+  name = "RepositoryPolicyNotFoundException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "RepositoryPolicyNotFoundException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _RepositoryPolicyNotFoundException.prototype);
+  }
+};
+var ReplicationStatus = {
+  COMPLETE: "COMPLETE",
+  FAILED: "FAILED",
+  IN_PROGRESS: "IN_PROGRESS"
+};
+var ImageNotFoundException = class _ImageNotFoundException extends ECRServiceException {
+  static {
+    __name(this, "ImageNotFoundException");
+  }
+  name = "ImageNotFoundException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "ImageNotFoundException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _ImageNotFoundException.prototype);
+  }
+};
+var TagStatus = {
+  ANY: "ANY",
+  TAGGED: "TAGGED",
+  UNTAGGED: "UNTAGGED"
+};
+var FindingSeverity = {
+  CRITICAL: "CRITICAL",
+  HIGH: "HIGH",
+  INFORMATIONAL: "INFORMATIONAL",
+  LOW: "LOW",
+  MEDIUM: "MEDIUM",
+  UNDEFINED: "UNDEFINED"
+};
+var ScanStatus = {
+  ACTIVE: "ACTIVE",
+  COMPLETE: "COMPLETE",
+  FAILED: "FAILED",
+  FINDINGS_UNAVAILABLE: "FINDINGS_UNAVAILABLE",
+  IN_PROGRESS: "IN_PROGRESS",
+  LIMIT_EXCEEDED: "LIMIT_EXCEEDED",
+  PENDING: "PENDING",
+  SCAN_ELIGIBILITY_EXPIRED: "SCAN_ELIGIBILITY_EXPIRED",
+  UNSUPPORTED_IMAGE: "UNSUPPORTED_IMAGE"
+};
+var ScanNotFoundException = class _ScanNotFoundException extends ECRServiceException {
+  static {
+    __name(this, "ScanNotFoundException");
+  }
+  name = "ScanNotFoundException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "ScanNotFoundException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _ScanNotFoundException.prototype);
+  }
+};
+var RepositoryFilterType = {
+  PREFIX_MATCH: "PREFIX_MATCH"
+};
+var LayerInaccessibleException = class _LayerInaccessibleException extends ECRServiceException {
+  static {
+    __name(this, "LayerInaccessibleException");
+  }
+  name = "LayerInaccessibleException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "LayerInaccessibleException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _LayerInaccessibleException.prototype);
+  }
+};
+var LayersNotFoundException = class _LayersNotFoundException extends ECRServiceException {
+  static {
+    __name(this, "LayersNotFoundException");
+  }
+  name = "LayersNotFoundException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "LayersNotFoundException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _LayersNotFoundException.prototype);
+  }
+};
+var UnableToGetUpstreamLayerException = class _UnableToGetUpstreamLayerException extends ECRServiceException {
+  static {
+    __name(this, "UnableToGetUpstreamLayerException");
+  }
+  name = "UnableToGetUpstreamLayerException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "UnableToGetUpstreamLayerException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _UnableToGetUpstreamLayerException.prototype);
+  }
+};
+var ImageActionType = {
+  EXPIRE: "EXPIRE"
+};
+var LifecyclePolicyPreviewStatus = {
+  COMPLETE: "COMPLETE",
+  EXPIRED: "EXPIRED",
+  FAILED: "FAILED",
+  IN_PROGRESS: "IN_PROGRESS"
+};
+var LifecyclePolicyPreviewNotFoundException = class _LifecyclePolicyPreviewNotFoundException extends ECRServiceException {
+  static {
+    __name(this, "LifecyclePolicyPreviewNotFoundException");
+  }
+  name = "LifecyclePolicyPreviewNotFoundException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "LifecyclePolicyPreviewNotFoundException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _LifecyclePolicyPreviewNotFoundException.prototype);
+  }
+};
+var ScanType = {
+  BASIC: "BASIC",
+  ENHANCED: "ENHANCED"
+};
+var ImageAlreadyExistsException = class _ImageAlreadyExistsException extends ECRServiceException {
+  static {
+    __name(this, "ImageAlreadyExistsException");
+  }
+  name = "ImageAlreadyExistsException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "ImageAlreadyExistsException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _ImageAlreadyExistsException.prototype);
+  }
+};
+var ImageDigestDoesNotMatchException = class _ImageDigestDoesNotMatchException extends ECRServiceException {
+  static {
+    __name(this, "ImageDigestDoesNotMatchException");
+  }
+  name = "ImageDigestDoesNotMatchException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "ImageDigestDoesNotMatchException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _ImageDigestDoesNotMatchException.prototype);
+  }
+};
+var ImageTagAlreadyExistsException = class _ImageTagAlreadyExistsException extends ECRServiceException {
+  static {
+    __name(this, "ImageTagAlreadyExistsException");
+  }
+  name = "ImageTagAlreadyExistsException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "ImageTagAlreadyExistsException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _ImageTagAlreadyExistsException.prototype);
+  }
+};
+var ReferencedImagesNotFoundException = class _ReferencedImagesNotFoundException extends ECRServiceException {
+  static {
+    __name(this, "ReferencedImagesNotFoundException");
+  }
+  name = "ReferencedImagesNotFoundException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "ReferencedImagesNotFoundException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _ReferencedImagesNotFoundException.prototype);
+  }
+};
+var UnsupportedImageTypeException = class _UnsupportedImageTypeException extends ECRServiceException {
+  static {
+    __name(this, "UnsupportedImageTypeException");
+  }
+  name = "UnsupportedImageTypeException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "UnsupportedImageTypeException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _UnsupportedImageTypeException.prototype);
+  }
+};
+var LifecyclePolicyPreviewInProgressException = class _LifecyclePolicyPreviewInProgressException extends ECRServiceException {
+  static {
+    __name(this, "LifecyclePolicyPreviewInProgressException");
+  }
+  name = "LifecyclePolicyPreviewInProgressException";
+  $fault = "client";
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "LifecyclePolicyPreviewInProgressException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _LifecyclePolicyPreviewInProgressException.prototype);
+  }
+};
+var InvalidLayerPartException = class _InvalidLayerPartException extends ECRServiceException {
+  static {
+    __name(this, "InvalidLayerPartException");
+  }
+  name = "InvalidLayerPartException";
+  $fault = "client";
+  /**
+   * <p>The registry ID associated with the exception.</p>
+   * @public
+   */
+  registryId;
+  /**
+   * <p>The repository name associated with the exception.</p>
+   * @public
+   */
+  repositoryName;
+  /**
+   * <p>The upload ID associated with the exception.</p>
+   * @public
+   */
+  uploadId;
+  /**
+   * <p>The last valid byte received from the layer part upload that is associated with the
+   *             exception.</p>
+   * @public
+   */
+  lastValidByteReceived;
+  /**
+   * @internal
+   */
+  constructor(opts) {
+    super({
+      name: "InvalidLayerPartException",
+      $fault: "client",
+      ...opts
+    });
+    Object.setPrototypeOf(this, _InvalidLayerPartException.prototype);
+    this.registryId = opts.registryId;
+    this.repositoryName = opts.repositoryName;
+    this.uploadId = opts.uploadId;
+    this.lastValidByteReceived = opts.lastValidByteReceived;
+  }
+};
+
+// src/protocols/Aws_json1_1.ts
+var se_BatchCheckLayerAvailabilityCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("BatchCheckLayerAvailability");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_BatchCheckLayerAvailabilityCommand");
+var se_BatchDeleteImageCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("BatchDeleteImage");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_BatchDeleteImageCommand");
+var se_BatchGetImageCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("BatchGetImage");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_BatchGetImageCommand");
+var se_BatchGetRepositoryScanningConfigurationCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("BatchGetRepositoryScanningConfiguration");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_BatchGetRepositoryScanningConfigurationCommand");
+var se_CompleteLayerUploadCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("CompleteLayerUpload");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_CompleteLayerUploadCommand");
+var se_CreatePullThroughCacheRuleCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("CreatePullThroughCacheRule");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_CreatePullThroughCacheRuleCommand");
+var se_CreateRepositoryCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("CreateRepository");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_CreateRepositoryCommand");
+var se_CreateRepositoryCreationTemplateCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("CreateRepositoryCreationTemplate");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_CreateRepositoryCreationTemplateCommand");
+var se_DeleteLifecyclePolicyCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("DeleteLifecyclePolicy");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_DeleteLifecyclePolicyCommand");
+var se_DeletePullThroughCacheRuleCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("DeletePullThroughCacheRule");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_DeletePullThroughCacheRuleCommand");
+var se_DeleteRegistryPolicyCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("DeleteRegistryPolicy");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_DeleteRegistryPolicyCommand");
+var se_DeleteRepositoryCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("DeleteRepository");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_DeleteRepositoryCommand");
+var se_DeleteRepositoryCreationTemplateCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("DeleteRepositoryCreationTemplate");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_DeleteRepositoryCreationTemplateCommand");
+var se_DeleteRepositoryPolicyCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("DeleteRepositoryPolicy");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_DeleteRepositoryPolicyCommand");
+var se_DescribeImageReplicationStatusCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("DescribeImageReplicationStatus");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_DescribeImageReplicationStatusCommand");
+var se_DescribeImagesCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("DescribeImages");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_DescribeImagesCommand");
+var se_DescribeImageScanFindingsCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("DescribeImageScanFindings");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_DescribeImageScanFindingsCommand");
+var se_DescribePullThroughCacheRulesCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("DescribePullThroughCacheRules");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_DescribePullThroughCacheRulesCommand");
+var se_DescribeRegistryCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("DescribeRegistry");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_DescribeRegistryCommand");
+var se_DescribeRepositoriesCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("DescribeRepositories");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_DescribeRepositoriesCommand");
+var se_DescribeRepositoryCreationTemplatesCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("DescribeRepositoryCreationTemplates");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_DescribeRepositoryCreationTemplatesCommand");
+var se_GetAccountSettingCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("GetAccountSetting");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_GetAccountSettingCommand");
+var se_GetAuthorizationTokenCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("GetAuthorizationToken");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_GetAuthorizationTokenCommand");
+var se_GetDownloadUrlForLayerCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("GetDownloadUrlForLayer");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_GetDownloadUrlForLayerCommand");
+var se_GetLifecyclePolicyCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("GetLifecyclePolicy");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_GetLifecyclePolicyCommand");
+var se_GetLifecyclePolicyPreviewCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("GetLifecyclePolicyPreview");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_GetLifecyclePolicyPreviewCommand");
+var se_GetRegistryPolicyCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("GetRegistryPolicy");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_GetRegistryPolicyCommand");
+var se_GetRegistryScanningConfigurationCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("GetRegistryScanningConfiguration");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_GetRegistryScanningConfigurationCommand");
+var se_GetRepositoryPolicyCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("GetRepositoryPolicy");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_GetRepositoryPolicyCommand");
+var se_InitiateLayerUploadCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("InitiateLayerUpload");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_InitiateLayerUploadCommand");
+var se_ListImagesCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("ListImages");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_ListImagesCommand");
+var se_ListTagsForResourceCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("ListTagsForResource");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_ListTagsForResourceCommand");
+var se_PutAccountSettingCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("PutAccountSetting");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_PutAccountSettingCommand");
+var se_PutImageCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("PutImage");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_PutImageCommand");
+var se_PutImageScanningConfigurationCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("PutImageScanningConfiguration");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_PutImageScanningConfigurationCommand");
+var se_PutImageTagMutabilityCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("PutImageTagMutability");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_PutImageTagMutabilityCommand");
+var se_PutLifecyclePolicyCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("PutLifecyclePolicy");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_PutLifecyclePolicyCommand");
+var se_PutRegistryPolicyCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("PutRegistryPolicy");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_PutRegistryPolicyCommand");
+var se_PutRegistryScanningConfigurationCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("PutRegistryScanningConfiguration");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_PutRegistryScanningConfigurationCommand");
+var se_PutReplicationConfigurationCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("PutReplicationConfiguration");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_PutReplicationConfigurationCommand");
+var se_SetRepositoryPolicyCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("SetRepositoryPolicy");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_SetRepositoryPolicyCommand");
+var se_StartImageScanCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("StartImageScan");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_StartImageScanCommand");
+var se_StartLifecyclePolicyPreviewCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("StartLifecyclePolicyPreview");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_StartLifecyclePolicyPreviewCommand");
+var se_TagResourceCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("TagResource");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_TagResourceCommand");
+var se_UntagResourceCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("UntagResource");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_UntagResourceCommand");
+var se_UpdatePullThroughCacheRuleCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("UpdatePullThroughCacheRule");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_UpdatePullThroughCacheRuleCommand");
+var se_UpdateRepositoryCreationTemplateCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("UpdateRepositoryCreationTemplate");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_UpdateRepositoryCreationTemplateCommand");
+var se_UploadLayerPartCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("UploadLayerPart");
+  let body;
+  body = JSON.stringify(se_UploadLayerPartRequest(input, context));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_UploadLayerPartCommand");
+var se_ValidatePullThroughCacheRuleCommand = /* @__PURE__ */ __name(async (input, context) => {
+  const headers = sharedHeaders("ValidatePullThroughCacheRule");
+  let body;
+  body = JSON.stringify((0, import_smithy_client._json)(input));
+  return buildHttpRpcRequest(context, headers, "/", void 0, body);
+}, "se_ValidatePullThroughCacheRuleCommand");
+var de_BatchCheckLayerAvailabilityCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_BatchCheckLayerAvailabilityCommand");
+var de_BatchDeleteImageCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_BatchDeleteImageCommand");
+var de_BatchGetImageCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_BatchGetImageCommand");
+var de_BatchGetRepositoryScanningConfigurationCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_BatchGetRepositoryScanningConfigurationCommand");
+var de_CompleteLayerUploadCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_CompleteLayerUploadCommand");
+var de_CreatePullThroughCacheRuleCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = de_CreatePullThroughCacheRuleResponse(data, context);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_CreatePullThroughCacheRuleCommand");
+var de_CreateRepositoryCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = de_CreateRepositoryResponse(data, context);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_CreateRepositoryCommand");
+var de_CreateRepositoryCreationTemplateCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = de_CreateRepositoryCreationTemplateResponse(data, context);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_CreateRepositoryCreationTemplateCommand");
+var de_DeleteLifecyclePolicyCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = de_DeleteLifecyclePolicyResponse(data, context);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_DeleteLifecyclePolicyCommand");
+var de_DeletePullThroughCacheRuleCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = de_DeletePullThroughCacheRuleResponse(data, context);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_DeletePullThroughCacheRuleCommand");
+var de_DeleteRegistryPolicyCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_DeleteRegistryPolicyCommand");
+var de_DeleteRepositoryCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = de_DeleteRepositoryResponse(data, context);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_DeleteRepositoryCommand");
+var de_DeleteRepositoryCreationTemplateCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = de_DeleteRepositoryCreationTemplateResponse(data, context);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_DeleteRepositoryCreationTemplateCommand");
+var de_DeleteRepositoryPolicyCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_DeleteRepositoryPolicyCommand");
+var de_DescribeImageReplicationStatusCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_DescribeImageReplicationStatusCommand");
+var de_DescribeImagesCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = de_DescribeImagesResponse(data, context);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_DescribeImagesCommand");
+var de_DescribeImageScanFindingsCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = de_DescribeImageScanFindingsResponse(data, context);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_DescribeImageScanFindingsCommand");
+var de_DescribePullThroughCacheRulesCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = de_DescribePullThroughCacheRulesResponse(data, context);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_DescribePullThroughCacheRulesCommand");
+var de_DescribeRegistryCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_DescribeRegistryCommand");
+var de_DescribeRepositoriesCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = de_DescribeRepositoriesResponse(data, context);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_DescribeRepositoriesCommand");
+var de_DescribeRepositoryCreationTemplatesCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = de_DescribeRepositoryCreationTemplatesResponse(data, context);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_DescribeRepositoryCreationTemplatesCommand");
+var de_GetAccountSettingCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_GetAccountSettingCommand");
+var de_GetAuthorizationTokenCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = de_GetAuthorizationTokenResponse(data, context);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_GetAuthorizationTokenCommand");
+var de_GetDownloadUrlForLayerCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_GetDownloadUrlForLayerCommand");
+var de_GetLifecyclePolicyCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = de_GetLifecyclePolicyResponse(data, context);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_GetLifecyclePolicyCommand");
+var de_GetLifecyclePolicyPreviewCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = de_GetLifecyclePolicyPreviewResponse(data, context);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_GetLifecyclePolicyPreviewCommand");
+var de_GetRegistryPolicyCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_GetRegistryPolicyCommand");
+var de_GetRegistryScanningConfigurationCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_GetRegistryScanningConfigurationCommand");
+var de_GetRepositoryPolicyCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_GetRepositoryPolicyCommand");
+var de_InitiateLayerUploadCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_InitiateLayerUploadCommand");
+var de_ListImagesCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_ListImagesCommand");
+var de_ListTagsForResourceCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_ListTagsForResourceCommand");
+var de_PutAccountSettingCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_PutAccountSettingCommand");
+var de_PutImageCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_PutImageCommand");
+var de_PutImageScanningConfigurationCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_PutImageScanningConfigurationCommand");
+var de_PutImageTagMutabilityCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_PutImageTagMutabilityCommand");
+var de_PutLifecyclePolicyCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_PutLifecyclePolicyCommand");
+var de_PutRegistryPolicyCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_PutRegistryPolicyCommand");
+var de_PutRegistryScanningConfigurationCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_PutRegistryScanningConfigurationCommand");
+var de_PutReplicationConfigurationCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_PutReplicationConfigurationCommand");
+var de_SetRepositoryPolicyCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_SetRepositoryPolicyCommand");
+var de_StartImageScanCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_StartImageScanCommand");
+var de_StartLifecyclePolicyPreviewCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_StartLifecyclePolicyPreviewCommand");
+var de_TagResourceCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_TagResourceCommand");
+var de_UntagResourceCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_UntagResourceCommand");
+var de_UpdatePullThroughCacheRuleCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = de_UpdatePullThroughCacheRuleResponse(data, context);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_UpdatePullThroughCacheRuleCommand");
+var de_UpdateRepositoryCreationTemplateCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = de_UpdateRepositoryCreationTemplateResponse(data, context);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_UpdateRepositoryCreationTemplateCommand");
+var de_UploadLayerPartCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_UploadLayerPartCommand");
+var de_ValidatePullThroughCacheRuleCommand = /* @__PURE__ */ __name(async (output, context) => {
+  if (output.statusCode >= 300) {
+    return de_CommandError(output, context);
+  }
+  const data = await (0, import_core2.parseJsonBody)(output.body, context);
+  let contents = {};
+  contents = (0, import_smithy_client._json)(data);
+  const response = {
+    $metadata: deserializeMetadata(output),
+    ...contents
+  };
+  return response;
+}, "de_ValidatePullThroughCacheRuleCommand");
+var de_CommandError = /* @__PURE__ */ __name(async (output, context) => {
+  const parsedOutput = {
+    ...output,
+    body: await (0, import_core2.parseJsonErrorBody)(output.body, context)
+  };
+  const errorCode = (0, import_core2.loadRestJsonErrorCode)(output, parsedOutput.body);
+  switch (errorCode) {
+    case "InvalidParameterException":
+    case "com.amazonaws.ecr#InvalidParameterException":
+      throw await de_InvalidParameterExceptionRes(parsedOutput, context);
+    case "RepositoryNotFoundException":
+    case "com.amazonaws.ecr#RepositoryNotFoundException":
+      throw await de_RepositoryNotFoundExceptionRes(parsedOutput, context);
+    case "ServerException":
+    case "com.amazonaws.ecr#ServerException":
+      throw await de_ServerExceptionRes(parsedOutput, context);
+    case "LimitExceededException":
+    case "com.amazonaws.ecr#LimitExceededException":
+      throw await de_LimitExceededExceptionRes(parsedOutput, context);
+    case "UnableToGetUpstreamImageException":
+    case "com.amazonaws.ecr#UnableToGetUpstreamImageException":
+      throw await de_UnableToGetUpstreamImageExceptionRes(parsedOutput, context);
+    case "ValidationException":
+    case "com.amazonaws.ecr#ValidationException":
+      throw await de_ValidationExceptionRes(parsedOutput, context);
+    case "EmptyUploadException":
+    case "com.amazonaws.ecr#EmptyUploadException":
+      throw await de_EmptyUploadExceptionRes(parsedOutput, context);
+    case "InvalidLayerException":
+    case "com.amazonaws.ecr#InvalidLayerException":
+      throw await de_InvalidLayerExceptionRes(parsedOutput, context);
+    case "KmsException":
+    case "com.amazonaws.ecr#KmsException":
+      throw await de_KmsExceptionRes(parsedOutput, context);
+    case "LayerAlreadyExistsException":
+    case "com.amazonaws.ecr#LayerAlreadyExistsException":
+      throw await de_LayerAlreadyExistsExceptionRes(parsedOutput, context);
+    case "LayerPartTooSmallException":
+    case "com.amazonaws.ecr#LayerPartTooSmallException":
+      throw await de_LayerPartTooSmallExceptionRes(parsedOutput, context);
+    case "UploadNotFoundException":
+    case "com.amazonaws.ecr#UploadNotFoundException":
+      throw await de_UploadNotFoundExceptionRes(parsedOutput, context);
+    case "PullThroughCacheRuleAlreadyExistsException":
+    case "com.amazonaws.ecr#PullThroughCacheRuleAlreadyExistsException":
+      throw await de_PullThroughCacheRuleAlreadyExistsExceptionRes(parsedOutput, context);
+    case "SecretNotFoundException":
+    case "com.amazonaws.ecr#SecretNotFoundException":
+      throw await de_SecretNotFoundExceptionRes(parsedOutput, context);
+    case "UnableToAccessSecretException":
+    case "com.amazonaws.ecr#UnableToAccessSecretException":
+      throw await de_UnableToAccessSecretExceptionRes(parsedOutput, context);
+    case "UnableToDecryptSecretValueException":
+    case "com.amazonaws.ecr#UnableToDecryptSecretValueException":
+      throw await de_UnableToDecryptSecretValueExceptionRes(parsedOutput, context);
+    case "UnsupportedUpstreamRegistryException":
+    case "com.amazonaws.ecr#UnsupportedUpstreamRegistryException":
+      throw await de_UnsupportedUpstreamRegistryExceptionRes(parsedOutput, context);
+    case "InvalidTagParameterException":
+    case "com.amazonaws.ecr#InvalidTagParameterException":
+      throw await de_InvalidTagParameterExceptionRes(parsedOutput, context);
+    case "RepositoryAlreadyExistsException":
+    case "com.amazonaws.ecr#RepositoryAlreadyExistsException":
+      throw await de_RepositoryAlreadyExistsExceptionRes(parsedOutput, context);
+    case "TooManyTagsException":
+    case "com.amazonaws.ecr#TooManyTagsException":
+      throw await de_TooManyTagsExceptionRes(parsedOutput, context);
+    case "TemplateAlreadyExistsException":
+    case "com.amazonaws.ecr#TemplateAlreadyExistsException":
+      throw await de_TemplateAlreadyExistsExceptionRes(parsedOutput, context);
+    case "LifecyclePolicyNotFoundException":
+    case "com.amazonaws.ecr#LifecyclePolicyNotFoundException":
+      throw await de_LifecyclePolicyNotFoundExceptionRes(parsedOutput, context);
+    case "PullThroughCacheRuleNotFoundException":
+    case "com.amazonaws.ecr#PullThroughCacheRuleNotFoundException":
+      throw await de_PullThroughCacheRuleNotFoundExceptionRes(parsedOutput, context);
+    case "RegistryPolicyNotFoundException":
+    case "com.amazonaws.ecr#RegistryPolicyNotFoundException":
+      throw await de_RegistryPolicyNotFoundExceptionRes(parsedOutput, context);
+    case "RepositoryNotEmptyException":
+    case "com.amazonaws.ecr#RepositoryNotEmptyException":
+      throw await de_RepositoryNotEmptyExceptionRes(parsedOutput, context);
+    case "TemplateNotFoundException":
+    case "com.amazonaws.ecr#TemplateNotFoundException":
+      throw await de_TemplateNotFoundExceptionRes(parsedOutput, context);
+    case "RepositoryPolicyNotFoundException":
+    case "com.amazonaws.ecr#RepositoryPolicyNotFoundException":
+      throw await de_RepositoryPolicyNotFoundExceptionRes(parsedOutput, context);
+    case "ImageNotFoundException":
+    case "com.amazonaws.ecr#ImageNotFoundException":
+      throw await de_ImageNotFoundExceptionRes(parsedOutput, context);
+    case "ScanNotFoundException":
+    case "com.amazonaws.ecr#ScanNotFoundException":
+      throw await de_ScanNotFoundExceptionRes(parsedOutput, context);
+    case "LayerInaccessibleException":
+    case "com.amazonaws.ecr#LayerInaccessibleException":
+      throw await de_LayerInaccessibleExceptionRes(parsedOutput, context);
+    case "LayersNotFoundException":
+    case "com.amazonaws.ecr#LayersNotFoundException":
+      throw await de_LayersNotFoundExceptionRes(parsedOutput, context);
+    case "UnableToGetUpstreamLayerException":
+    case "com.amazonaws.ecr#UnableToGetUpstreamLayerException":
+      throw await de_UnableToGetUpstreamLayerExceptionRes(parsedOutput, context);
+    case "LifecyclePolicyPreviewNotFoundException":
+    case "com.amazonaws.ecr#LifecyclePolicyPreviewNotFoundException":
+      throw await de_LifecyclePolicyPreviewNotFoundExceptionRes(parsedOutput, context);
+    case "ImageAlreadyExistsException":
+    case "com.amazonaws.ecr#ImageAlreadyExistsException":
+      throw await de_ImageAlreadyExistsExceptionRes(parsedOutput, context);
+    case "ImageDigestDoesNotMatchException":
+    case "com.amazonaws.ecr#ImageDigestDoesNotMatchException":
+      throw await de_ImageDigestDoesNotMatchExceptionRes(parsedOutput, context);
+    case "ImageTagAlreadyExistsException":
+    case "com.amazonaws.ecr#ImageTagAlreadyExistsException":
+      throw await de_ImageTagAlreadyExistsExceptionRes(parsedOutput, context);
+    case "ReferencedImagesNotFoundException":
+    case "com.amazonaws.ecr#ReferencedImagesNotFoundException":
+      throw await de_ReferencedImagesNotFoundExceptionRes(parsedOutput, context);
+    case "UnsupportedImageTypeException":
+    case "com.amazonaws.ecr#UnsupportedImageTypeException":
+      throw await de_UnsupportedImageTypeExceptionRes(parsedOutput, context);
+    case "LifecyclePolicyPreviewInProgressException":
+    case "com.amazonaws.ecr#LifecyclePolicyPreviewInProgressException":
+      throw await de_LifecyclePolicyPreviewInProgressExceptionRes(parsedOutput, context);
+    case "InvalidLayerPartException":
+    case "com.amazonaws.ecr#InvalidLayerPartException":
+      throw await de_InvalidLayerPartExceptionRes(parsedOutput, context);
+    default:
+      const parsedBody = parsedOutput.body;
+      return throwDefaultError({
+        output,
+        parsedBody,
+        errorCode
+      });
+  }
+}, "de_CommandError");
+var de_EmptyUploadExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new EmptyUploadException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_EmptyUploadExceptionRes");
+var de_ImageAlreadyExistsExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new ImageAlreadyExistsException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_ImageAlreadyExistsExceptionRes");
+var de_ImageDigestDoesNotMatchExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new ImageDigestDoesNotMatchException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_ImageDigestDoesNotMatchExceptionRes");
+var de_ImageNotFoundExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new ImageNotFoundException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_ImageNotFoundExceptionRes");
+var de_ImageTagAlreadyExistsExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new ImageTagAlreadyExistsException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_ImageTagAlreadyExistsExceptionRes");
+var de_InvalidLayerExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new InvalidLayerException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_InvalidLayerExceptionRes");
+var de_InvalidLayerPartExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new InvalidLayerPartException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_InvalidLayerPartExceptionRes");
+var de_InvalidParameterExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new InvalidParameterException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_InvalidParameterExceptionRes");
+var de_InvalidTagParameterExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new InvalidTagParameterException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_InvalidTagParameterExceptionRes");
+var de_KmsExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new KmsException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_KmsExceptionRes");
+var de_LayerAlreadyExistsExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new LayerAlreadyExistsException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_LayerAlreadyExistsExceptionRes");
+var de_LayerInaccessibleExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new LayerInaccessibleException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_LayerInaccessibleExceptionRes");
+var de_LayerPartTooSmallExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new LayerPartTooSmallException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_LayerPartTooSmallExceptionRes");
+var de_LayersNotFoundExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new LayersNotFoundException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_LayersNotFoundExceptionRes");
+var de_LifecyclePolicyNotFoundExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new LifecyclePolicyNotFoundException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_LifecyclePolicyNotFoundExceptionRes");
+var de_LifecyclePolicyPreviewInProgressExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new LifecyclePolicyPreviewInProgressException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_LifecyclePolicyPreviewInProgressExceptionRes");
+var de_LifecyclePolicyPreviewNotFoundExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new LifecyclePolicyPreviewNotFoundException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_LifecyclePolicyPreviewNotFoundExceptionRes");
+var de_LimitExceededExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new LimitExceededException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_LimitExceededExceptionRes");
+var de_PullThroughCacheRuleAlreadyExistsExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new PullThroughCacheRuleAlreadyExistsException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_PullThroughCacheRuleAlreadyExistsExceptionRes");
+var de_PullThroughCacheRuleNotFoundExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new PullThroughCacheRuleNotFoundException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_PullThroughCacheRuleNotFoundExceptionRes");
+var de_ReferencedImagesNotFoundExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new ReferencedImagesNotFoundException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_ReferencedImagesNotFoundExceptionRes");
+var de_RegistryPolicyNotFoundExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new RegistryPolicyNotFoundException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_RegistryPolicyNotFoundExceptionRes");
+var de_RepositoryAlreadyExistsExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new RepositoryAlreadyExistsException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_RepositoryAlreadyExistsExceptionRes");
+var de_RepositoryNotEmptyExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new RepositoryNotEmptyException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_RepositoryNotEmptyExceptionRes");
+var de_RepositoryNotFoundExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new RepositoryNotFoundException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_RepositoryNotFoundExceptionRes");
+var de_RepositoryPolicyNotFoundExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new RepositoryPolicyNotFoundException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_RepositoryPolicyNotFoundExceptionRes");
+var de_ScanNotFoundExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new ScanNotFoundException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_ScanNotFoundExceptionRes");
+var de_SecretNotFoundExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new SecretNotFoundException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_SecretNotFoundExceptionRes");
+var de_ServerExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new ServerException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_ServerExceptionRes");
+var de_TemplateAlreadyExistsExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new TemplateAlreadyExistsException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_TemplateAlreadyExistsExceptionRes");
+var de_TemplateNotFoundExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new TemplateNotFoundException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_TemplateNotFoundExceptionRes");
+var de_TooManyTagsExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new TooManyTagsException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_TooManyTagsExceptionRes");
+var de_UnableToAccessSecretExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new UnableToAccessSecretException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_UnableToAccessSecretExceptionRes");
+var de_UnableToDecryptSecretValueExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new UnableToDecryptSecretValueException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_UnableToDecryptSecretValueExceptionRes");
+var de_UnableToGetUpstreamImageExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new UnableToGetUpstreamImageException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_UnableToGetUpstreamImageExceptionRes");
+var de_UnableToGetUpstreamLayerExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new UnableToGetUpstreamLayerException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_UnableToGetUpstreamLayerExceptionRes");
+var de_UnsupportedImageTypeExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new UnsupportedImageTypeException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_UnsupportedImageTypeExceptionRes");
+var de_UnsupportedUpstreamRegistryExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new UnsupportedUpstreamRegistryException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_UnsupportedUpstreamRegistryExceptionRes");
+var de_UploadNotFoundExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new UploadNotFoundException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_UploadNotFoundExceptionRes");
+var de_ValidationExceptionRes = /* @__PURE__ */ __name(async (parsedOutput, context) => {
+  const body = parsedOutput.body;
+  const deserialized = (0, import_smithy_client._json)(body);
+  const exception = new ValidationException({
+    $metadata: deserializeMetadata(parsedOutput),
+    ...deserialized
+  });
+  return (0, import_smithy_client.decorateServiceException)(exception, body);
+}, "de_ValidationExceptionRes");
+var se_UploadLayerPartRequest = /* @__PURE__ */ __name((input, context) => {
+  return (0, import_smithy_client.take)(input, {
+    layerPartBlob: context.base64Encoder,
+    partFirstByte: [],
+    partLastByte: [],
+    registryId: [],
+    repositoryName: [],
+    uploadId: []
+  });
+}, "se_UploadLayerPartRequest");
+var de_AuthorizationData = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    authorizationToken: import_smithy_client.expectString,
+    expiresAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "expiresAt"),
+    proxyEndpoint: import_smithy_client.expectString
+  });
+}, "de_AuthorizationData");
+var de_AuthorizationDataList = /* @__PURE__ */ __name((output, context) => {
+  const retVal = (output || []).filter((e) => e != null).map((entry) => {
+    return de_AuthorizationData(entry, context);
+  });
+  return retVal;
+}, "de_AuthorizationDataList");
+var de_AwsEcrContainerImageDetails = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    architecture: import_smithy_client.expectString,
+    author: import_smithy_client.expectString,
+    imageHash: import_smithy_client.expectString,
+    imageTags: import_smithy_client._json,
+    inUseCount: import_smithy_client.expectLong,
+    lastInUseAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "lastInUseAt"),
+    platform: import_smithy_client.expectString,
+    pushedAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "pushedAt"),
+    registry: import_smithy_client.expectString,
+    repositoryName: import_smithy_client.expectString
+  });
+}, "de_AwsEcrContainerImageDetails");
+var de_CreatePullThroughCacheRuleResponse = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    createdAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "createdAt"),
+    credentialArn: import_smithy_client.expectString,
+    customRoleArn: import_smithy_client.expectString,
+    ecrRepositoryPrefix: import_smithy_client.expectString,
+    registryId: import_smithy_client.expectString,
+    upstreamRegistry: import_smithy_client.expectString,
+    upstreamRegistryUrl: import_smithy_client.expectString,
+    upstreamRepositoryPrefix: import_smithy_client.expectString
+  });
+}, "de_CreatePullThroughCacheRuleResponse");
+var de_CreateRepositoryCreationTemplateResponse = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    registryId: import_smithy_client.expectString,
+    repositoryCreationTemplate: /* @__PURE__ */ __name((_) => de_RepositoryCreationTemplate(_, context), "repositoryCreationTemplate")
+  });
+}, "de_CreateRepositoryCreationTemplateResponse");
+var de_CreateRepositoryResponse = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    repository: /* @__PURE__ */ __name((_) => de_Repository(_, context), "repository")
+  });
+}, "de_CreateRepositoryResponse");
+var de_CvssScore = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    baseScore: import_smithy_client.limitedParseDouble,
+    scoringVector: import_smithy_client.expectString,
+    source: import_smithy_client.expectString,
+    version: import_smithy_client.expectString
+  });
+}, "de_CvssScore");
+var de_CvssScoreDetails = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    adjustments: import_smithy_client._json,
+    score: import_smithy_client.limitedParseDouble,
+    scoreSource: import_smithy_client.expectString,
+    scoringVector: import_smithy_client.expectString,
+    version: import_smithy_client.expectString
+  });
+}, "de_CvssScoreDetails");
+var de_CvssScoreList = /* @__PURE__ */ __name((output, context) => {
+  const retVal = (output || []).filter((e) => e != null).map((entry) => {
+    return de_CvssScore(entry, context);
+  });
+  return retVal;
+}, "de_CvssScoreList");
+var de_DeleteLifecyclePolicyResponse = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    lastEvaluatedAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "lastEvaluatedAt"),
+    lifecyclePolicyText: import_smithy_client.expectString,
+    registryId: import_smithy_client.expectString,
+    repositoryName: import_smithy_client.expectString
+  });
+}, "de_DeleteLifecyclePolicyResponse");
+var de_DeletePullThroughCacheRuleResponse = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    createdAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "createdAt"),
+    credentialArn: import_smithy_client.expectString,
+    customRoleArn: import_smithy_client.expectString,
+    ecrRepositoryPrefix: import_smithy_client.expectString,
+    registryId: import_smithy_client.expectString,
+    upstreamRegistryUrl: import_smithy_client.expectString,
+    upstreamRepositoryPrefix: import_smithy_client.expectString
+  });
+}, "de_DeletePullThroughCacheRuleResponse");
+var de_DeleteRepositoryCreationTemplateResponse = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    registryId: import_smithy_client.expectString,
+    repositoryCreationTemplate: /* @__PURE__ */ __name((_) => de_RepositoryCreationTemplate(_, context), "repositoryCreationTemplate")
+  });
+}, "de_DeleteRepositoryCreationTemplateResponse");
+var de_DeleteRepositoryResponse = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    repository: /* @__PURE__ */ __name((_) => de_Repository(_, context), "repository")
+  });
+}, "de_DeleteRepositoryResponse");
+var de_DescribeImageScanFindingsResponse = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    imageId: import_smithy_client._json,
+    imageScanFindings: /* @__PURE__ */ __name((_) => de_ImageScanFindings(_, context), "imageScanFindings"),
+    imageScanStatus: import_smithy_client._json,
+    nextToken: import_smithy_client.expectString,
+    registryId: import_smithy_client.expectString,
+    repositoryName: import_smithy_client.expectString
+  });
+}, "de_DescribeImageScanFindingsResponse");
+var de_DescribeImagesResponse = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    imageDetails: /* @__PURE__ */ __name((_) => de_ImageDetailList(_, context), "imageDetails"),
+    nextToken: import_smithy_client.expectString
+  });
+}, "de_DescribeImagesResponse");
+var de_DescribePullThroughCacheRulesResponse = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    nextToken: import_smithy_client.expectString,
+    pullThroughCacheRules: /* @__PURE__ */ __name((_) => de_PullThroughCacheRuleList(_, context), "pullThroughCacheRules")
+  });
+}, "de_DescribePullThroughCacheRulesResponse");
+var de_DescribeRepositoriesResponse = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    nextToken: import_smithy_client.expectString,
+    repositories: /* @__PURE__ */ __name((_) => de_RepositoryList(_, context), "repositories")
+  });
+}, "de_DescribeRepositoriesResponse");
+var de_DescribeRepositoryCreationTemplatesResponse = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    nextToken: import_smithy_client.expectString,
+    registryId: import_smithy_client.expectString,
+    repositoryCreationTemplates: /* @__PURE__ */ __name((_) => de_RepositoryCreationTemplateList(_, context), "repositoryCreationTemplates")
+  });
+}, "de_DescribeRepositoryCreationTemplatesResponse");
+var de_EnhancedImageScanFinding = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    awsAccountId: import_smithy_client.expectString,
+    description: import_smithy_client.expectString,
+    exploitAvailable: import_smithy_client.expectString,
+    findingArn: import_smithy_client.expectString,
+    firstObservedAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "firstObservedAt"),
+    fixAvailable: import_smithy_client.expectString,
+    lastObservedAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "lastObservedAt"),
+    packageVulnerabilityDetails: /* @__PURE__ */ __name((_) => de_PackageVulnerabilityDetails(_, context), "packageVulnerabilityDetails"),
+    remediation: import_smithy_client._json,
+    resources: /* @__PURE__ */ __name((_) => de_ResourceList(_, context), "resources"),
+    score: import_smithy_client.limitedParseDouble,
+    scoreDetails: /* @__PURE__ */ __name((_) => de_ScoreDetails(_, context), "scoreDetails"),
+    severity: import_smithy_client.expectString,
+    status: import_smithy_client.expectString,
+    title: import_smithy_client.expectString,
+    type: import_smithy_client.expectString,
+    updatedAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "updatedAt")
+  });
+}, "de_EnhancedImageScanFinding");
+var de_EnhancedImageScanFindingList = /* @__PURE__ */ __name((output, context) => {
+  const retVal = (output || []).filter((e) => e != null).map((entry) => {
+    return de_EnhancedImageScanFinding(entry, context);
+  });
+  return retVal;
+}, "de_EnhancedImageScanFindingList");
+var de_GetAuthorizationTokenResponse = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    authorizationData: /* @__PURE__ */ __name((_) => de_AuthorizationDataList(_, context), "authorizationData")
+  });
+}, "de_GetAuthorizationTokenResponse");
+var de_GetLifecyclePolicyPreviewResponse = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    lifecyclePolicyText: import_smithy_client.expectString,
+    nextToken: import_smithy_client.expectString,
+    previewResults: /* @__PURE__ */ __name((_) => de_LifecyclePolicyPreviewResultList(_, context), "previewResults"),
+    registryId: import_smithy_client.expectString,
+    repositoryName: import_smithy_client.expectString,
+    status: import_smithy_client.expectString,
+    summary: import_smithy_client._json
+  });
+}, "de_GetLifecyclePolicyPreviewResponse");
+var de_GetLifecyclePolicyResponse = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    lastEvaluatedAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "lastEvaluatedAt"),
+    lifecyclePolicyText: import_smithy_client.expectString,
+    registryId: import_smithy_client.expectString,
+    repositoryName: import_smithy_client.expectString
+  });
+}, "de_GetLifecyclePolicyResponse");
+var de_ImageDetail = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    artifactMediaType: import_smithy_client.expectString,
+    imageDigest: import_smithy_client.expectString,
+    imageManifestMediaType: import_smithy_client.expectString,
+    imagePushedAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "imagePushedAt"),
+    imageScanFindingsSummary: /* @__PURE__ */ __name((_) => de_ImageScanFindingsSummary(_, context), "imageScanFindingsSummary"),
+    imageScanStatus: import_smithy_client._json,
+    imageSizeInBytes: import_smithy_client.expectLong,
+    imageTags: import_smithy_client._json,
+    lastRecordedPullTime: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "lastRecordedPullTime"),
+    registryId: import_smithy_client.expectString,
+    repositoryName: import_smithy_client.expectString
+  });
+}, "de_ImageDetail");
+var de_ImageDetailList = /* @__PURE__ */ __name((output, context) => {
+  const retVal = (output || []).filter((e) => e != null).map((entry) => {
+    return de_ImageDetail(entry, context);
+  });
+  return retVal;
+}, "de_ImageDetailList");
+var de_ImageScanFindings = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    enhancedFindings: /* @__PURE__ */ __name((_) => de_EnhancedImageScanFindingList(_, context), "enhancedFindings"),
+    findingSeverityCounts: import_smithy_client._json,
+    findings: import_smithy_client._json,
+    imageScanCompletedAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "imageScanCompletedAt"),
+    vulnerabilitySourceUpdatedAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "vulnerabilitySourceUpdatedAt")
+  });
+}, "de_ImageScanFindings");
+var de_ImageScanFindingsSummary = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    findingSeverityCounts: import_smithy_client._json,
+    imageScanCompletedAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "imageScanCompletedAt"),
+    vulnerabilitySourceUpdatedAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "vulnerabilitySourceUpdatedAt")
+  });
+}, "de_ImageScanFindingsSummary");
+var de_LifecyclePolicyPreviewResult = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    action: import_smithy_client._json,
+    appliedRulePriority: import_smithy_client.expectInt32,
+    imageDigest: import_smithy_client.expectString,
+    imagePushedAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "imagePushedAt"),
+    imageTags: import_smithy_client._json
+  });
+}, "de_LifecyclePolicyPreviewResult");
+var de_LifecyclePolicyPreviewResultList = /* @__PURE__ */ __name((output, context) => {
+  const retVal = (output || []).filter((e) => e != null).map((entry) => {
+    return de_LifecyclePolicyPreviewResult(entry, context);
+  });
+  return retVal;
+}, "de_LifecyclePolicyPreviewResultList");
+var de_PackageVulnerabilityDetails = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    cvss: /* @__PURE__ */ __name((_) => de_CvssScoreList(_, context), "cvss"),
+    referenceUrls: import_smithy_client._json,
+    relatedVulnerabilities: import_smithy_client._json,
+    source: import_smithy_client.expectString,
+    sourceUrl: import_smithy_client.expectString,
+    vendorCreatedAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "vendorCreatedAt"),
+    vendorSeverity: import_smithy_client.expectString,
+    vendorUpdatedAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "vendorUpdatedAt"),
+    vulnerabilityId: import_smithy_client.expectString,
+    vulnerablePackages: import_smithy_client._json
+  });
+}, "de_PackageVulnerabilityDetails");
+var de_PullThroughCacheRule = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    createdAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "createdAt"),
+    credentialArn: import_smithy_client.expectString,
+    customRoleArn: import_smithy_client.expectString,
+    ecrRepositoryPrefix: import_smithy_client.expectString,
+    registryId: import_smithy_client.expectString,
+    updatedAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "updatedAt"),
+    upstreamRegistry: import_smithy_client.expectString,
+    upstreamRegistryUrl: import_smithy_client.expectString,
+    upstreamRepositoryPrefix: import_smithy_client.expectString
+  });
+}, "de_PullThroughCacheRule");
+var de_PullThroughCacheRuleList = /* @__PURE__ */ __name((output, context) => {
+  const retVal = (output || []).filter((e) => e != null).map((entry) => {
+    return de_PullThroughCacheRule(entry, context);
+  });
+  return retVal;
+}, "de_PullThroughCacheRuleList");
+var de_Repository = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    createdAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "createdAt"),
+    encryptionConfiguration: import_smithy_client._json,
+    imageScanningConfiguration: import_smithy_client._json,
+    imageTagMutability: import_smithy_client.expectString,
+    imageTagMutabilityExclusionFilters: import_smithy_client._json,
+    registryId: import_smithy_client.expectString,
+    repositoryArn: import_smithy_client.expectString,
+    repositoryName: import_smithy_client.expectString,
+    repositoryUri: import_smithy_client.expectString
+  });
+}, "de_Repository");
+var de_RepositoryCreationTemplate = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    appliedFor: import_smithy_client._json,
+    createdAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "createdAt"),
+    customRoleArn: import_smithy_client.expectString,
+    description: import_smithy_client.expectString,
+    encryptionConfiguration: import_smithy_client._json,
+    imageTagMutability: import_smithy_client.expectString,
+    imageTagMutabilityExclusionFilters: import_smithy_client._json,
+    lifecyclePolicy: import_smithy_client.expectString,
+    prefix: import_smithy_client.expectString,
+    repositoryPolicy: import_smithy_client.expectString,
+    resourceTags: import_smithy_client._json,
+    updatedAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "updatedAt")
+  });
+}, "de_RepositoryCreationTemplate");
+var de_RepositoryCreationTemplateList = /* @__PURE__ */ __name((output, context) => {
+  const retVal = (output || []).filter((e) => e != null).map((entry) => {
+    return de_RepositoryCreationTemplate(entry, context);
+  });
+  return retVal;
+}, "de_RepositoryCreationTemplateList");
+var de_RepositoryList = /* @__PURE__ */ __name((output, context) => {
+  const retVal = (output || []).filter((e) => e != null).map((entry) => {
+    return de_Repository(entry, context);
+  });
+  return retVal;
+}, "de_RepositoryList");
+var de_Resource = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    details: /* @__PURE__ */ __name((_) => de_ResourceDetails(_, context), "details"),
+    id: import_smithy_client.expectString,
+    tags: import_smithy_client._json,
+    type: import_smithy_client.expectString
+  });
+}, "de_Resource");
+var de_ResourceDetails = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    awsEcrContainerImage: /* @__PURE__ */ __name((_) => de_AwsEcrContainerImageDetails(_, context), "awsEcrContainerImage")
+  });
+}, "de_ResourceDetails");
+var de_ResourceList = /* @__PURE__ */ __name((output, context) => {
+  const retVal = (output || []).filter((e) => e != null).map((entry) => {
+    return de_Resource(entry, context);
+  });
+  return retVal;
+}, "de_ResourceList");
+var de_ScoreDetails = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    cvss: /* @__PURE__ */ __name((_) => de_CvssScoreDetails(_, context), "cvss")
+  });
+}, "de_ScoreDetails");
+var de_UpdatePullThroughCacheRuleResponse = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    credentialArn: import_smithy_client.expectString,
+    customRoleArn: import_smithy_client.expectString,
+    ecrRepositoryPrefix: import_smithy_client.expectString,
+    registryId: import_smithy_client.expectString,
+    updatedAt: /* @__PURE__ */ __name((_) => (0, import_smithy_client.expectNonNull)((0, import_smithy_client.parseEpochTimestamp)((0, import_smithy_client.expectNumber)(_))), "updatedAt"),
+    upstreamRepositoryPrefix: import_smithy_client.expectString
+  });
+}, "de_UpdatePullThroughCacheRuleResponse");
+var de_UpdateRepositoryCreationTemplateResponse = /* @__PURE__ */ __name((output, context) => {
+  return (0, import_smithy_client.take)(output, {
+    registryId: import_smithy_client.expectString,
+    repositoryCreationTemplate: /* @__PURE__ */ __name((_) => de_RepositoryCreationTemplate(_, context), "repositoryCreationTemplate")
+  });
+}, "de_UpdateRepositoryCreationTemplateResponse");
+var deserializeMetadata = /* @__PURE__ */ __name((output) => ({
+  httpStatusCode: output.statusCode,
+  requestId: output.headers["x-amzn-requestid"] ?? output.headers["x-amzn-request-id"] ?? output.headers["x-amz-request-id"],
+  extendedRequestId: output.headers["x-amz-id-2"],
+  cfId: output.headers["x-amz-cf-id"]
+}), "deserializeMetadata");
+var throwDefaultError = (0, import_smithy_client.withBaseException)(ECRServiceException);
+var buildHttpRpcRequest = /* @__PURE__ */ __name(async (context, headers, path, resolvedHostname, body) => {
+  const { hostname, protocol = "https", port, path: basePath } = await context.endpoint();
+  const contents = {
+    protocol,
+    hostname,
+    port,
+    method: "POST",
+    path: basePath.endsWith("/") ? basePath.slice(0, -1) + path : basePath + path,
+    headers
+  };
+  if (resolvedHostname !== void 0) {
+    contents.hostname = resolvedHostname;
+  }
+  if (body !== void 0) {
+    contents.body = body;
+  }
+  return new import_protocol_http.HttpRequest(contents);
+}, "buildHttpRpcRequest");
+function sharedHeaders(operation) {
+  return {
+    "content-type": "application/x-amz-json-1.1",
+    "x-amz-target": `AmazonEC2ContainerRegistry_V20150921.${operation}`
+  };
+}
+__name(sharedHeaders, "sharedHeaders");
+
+// src/commands/BatchCheckLayerAvailabilityCommand.ts
+var BatchCheckLayerAvailabilityCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "BatchCheckLayerAvailability", {}).n("ECRClient", "BatchCheckLayerAvailabilityCommand").f(void 0, void 0).ser(se_BatchCheckLayerAvailabilityCommand).de(de_BatchCheckLayerAvailabilityCommand).build() {
+  static {
+    __name(this, "BatchCheckLayerAvailabilityCommand");
+  }
+};
+
+// src/commands/BatchDeleteImageCommand.ts
+
+
+
+var BatchDeleteImageCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "BatchDeleteImage", {}).n("ECRClient", "BatchDeleteImageCommand").f(void 0, void 0).ser(se_BatchDeleteImageCommand).de(de_BatchDeleteImageCommand).build() {
+  static {
+    __name(this, "BatchDeleteImageCommand");
+  }
+};
+
+// src/commands/BatchGetImageCommand.ts
+
+
+
+var BatchGetImageCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "BatchGetImage", {}).n("ECRClient", "BatchGetImageCommand").f(void 0, void 0).ser(se_BatchGetImageCommand).de(de_BatchGetImageCommand).build() {
+  static {
+    __name(this, "BatchGetImageCommand");
+  }
+};
+
+// src/commands/BatchGetRepositoryScanningConfigurationCommand.ts
+
+
+
+var BatchGetRepositoryScanningConfigurationCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "BatchGetRepositoryScanningConfiguration", {}).n("ECRClient", "BatchGetRepositoryScanningConfigurationCommand").f(void 0, void 0).ser(se_BatchGetRepositoryScanningConfigurationCommand).de(de_BatchGetRepositoryScanningConfigurationCommand).build() {
+  static {
+    __name(this, "BatchGetRepositoryScanningConfigurationCommand");
+  }
+};
+
+// src/commands/CompleteLayerUploadCommand.ts
+
+
+
+var CompleteLayerUploadCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "CompleteLayerUpload", {}).n("ECRClient", "CompleteLayerUploadCommand").f(void 0, void 0).ser(se_CompleteLayerUploadCommand).de(de_CompleteLayerUploadCommand).build() {
+  static {
+    __name(this, "CompleteLayerUploadCommand");
+  }
+};
+
+// src/commands/CreatePullThroughCacheRuleCommand.ts
+
+
+
+var CreatePullThroughCacheRuleCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "CreatePullThroughCacheRule", {}).n("ECRClient", "CreatePullThroughCacheRuleCommand").f(void 0, void 0).ser(se_CreatePullThroughCacheRuleCommand).de(de_CreatePullThroughCacheRuleCommand).build() {
+  static {
+    __name(this, "CreatePullThroughCacheRuleCommand");
+  }
+};
+
+// src/commands/CreateRepositoryCommand.ts
+
+
+
+var CreateRepositoryCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "CreateRepository", {}).n("ECRClient", "CreateRepositoryCommand").f(void 0, void 0).ser(se_CreateRepositoryCommand).de(de_CreateRepositoryCommand).build() {
+  static {
+    __name(this, "CreateRepositoryCommand");
+  }
+};
+
+// src/commands/CreateRepositoryCreationTemplateCommand.ts
+
+
+
+var CreateRepositoryCreationTemplateCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "CreateRepositoryCreationTemplate", {}).n("ECRClient", "CreateRepositoryCreationTemplateCommand").f(void 0, void 0).ser(se_CreateRepositoryCreationTemplateCommand).de(de_CreateRepositoryCreationTemplateCommand).build() {
+  static {
+    __name(this, "CreateRepositoryCreationTemplateCommand");
+  }
+};
+
+// src/commands/DeleteLifecyclePolicyCommand.ts
+
+
+
+var DeleteLifecyclePolicyCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "DeleteLifecyclePolicy", {}).n("ECRClient", "DeleteLifecyclePolicyCommand").f(void 0, void 0).ser(se_DeleteLifecyclePolicyCommand).de(de_DeleteLifecyclePolicyCommand).build() {
+  static {
+    __name(this, "DeleteLifecyclePolicyCommand");
+  }
+};
+
+// src/commands/DeletePullThroughCacheRuleCommand.ts
+
+
+
+var DeletePullThroughCacheRuleCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "DeletePullThroughCacheRule", {}).n("ECRClient", "DeletePullThroughCacheRuleCommand").f(void 0, void 0).ser(se_DeletePullThroughCacheRuleCommand).de(de_DeletePullThroughCacheRuleCommand).build() {
+  static {
+    __name(this, "DeletePullThroughCacheRuleCommand");
+  }
+};
+
+// src/commands/DeleteRegistryPolicyCommand.ts
+
+
+
+var DeleteRegistryPolicyCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "DeleteRegistryPolicy", {}).n("ECRClient", "DeleteRegistryPolicyCommand").f(void 0, void 0).ser(se_DeleteRegistryPolicyCommand).de(de_DeleteRegistryPolicyCommand).build() {
+  static {
+    __name(this, "DeleteRegistryPolicyCommand");
+  }
+};
+
+// src/commands/DeleteRepositoryCommand.ts
+
+
+
+var DeleteRepositoryCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "DeleteRepository", {}).n("ECRClient", "DeleteRepositoryCommand").f(void 0, void 0).ser(se_DeleteRepositoryCommand).de(de_DeleteRepositoryCommand).build() {
+  static {
+    __name(this, "DeleteRepositoryCommand");
+  }
+};
+
+// src/commands/DeleteRepositoryCreationTemplateCommand.ts
+
+
+
+var DeleteRepositoryCreationTemplateCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "DeleteRepositoryCreationTemplate", {}).n("ECRClient", "DeleteRepositoryCreationTemplateCommand").f(void 0, void 0).ser(se_DeleteRepositoryCreationTemplateCommand).de(de_DeleteRepositoryCreationTemplateCommand).build() {
+  static {
+    __name(this, "DeleteRepositoryCreationTemplateCommand");
+  }
+};
+
+// src/commands/DeleteRepositoryPolicyCommand.ts
+
+
+
+var DeleteRepositoryPolicyCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "DeleteRepositoryPolicy", {}).n("ECRClient", "DeleteRepositoryPolicyCommand").f(void 0, void 0).ser(se_DeleteRepositoryPolicyCommand).de(de_DeleteRepositoryPolicyCommand).build() {
+  static {
+    __name(this, "DeleteRepositoryPolicyCommand");
+  }
+};
+
+// src/commands/DescribeImageReplicationStatusCommand.ts
+
+
+
+var DescribeImageReplicationStatusCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "DescribeImageReplicationStatus", {}).n("ECRClient", "DescribeImageReplicationStatusCommand").f(void 0, void 0).ser(se_DescribeImageReplicationStatusCommand).de(de_DescribeImageReplicationStatusCommand).build() {
+  static {
+    __name(this, "DescribeImageReplicationStatusCommand");
+  }
+};
+
+// src/commands/DescribeImageScanFindingsCommand.ts
+
+
+
+var DescribeImageScanFindingsCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "DescribeImageScanFindings", {}).n("ECRClient", "DescribeImageScanFindingsCommand").f(void 0, void 0).ser(se_DescribeImageScanFindingsCommand).de(de_DescribeImageScanFindingsCommand).build() {
+  static {
+    __name(this, "DescribeImageScanFindingsCommand");
+  }
+};
+
+// src/commands/DescribeImagesCommand.ts
+
+
+
+var DescribeImagesCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "DescribeImages", {}).n("ECRClient", "DescribeImagesCommand").f(void 0, void 0).ser(se_DescribeImagesCommand).de(de_DescribeImagesCommand).build() {
+  static {
+    __name(this, "DescribeImagesCommand");
+  }
+};
+
+// src/commands/DescribePullThroughCacheRulesCommand.ts
+
+
+
+var DescribePullThroughCacheRulesCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "DescribePullThroughCacheRules", {}).n("ECRClient", "DescribePullThroughCacheRulesCommand").f(void 0, void 0).ser(se_DescribePullThroughCacheRulesCommand).de(de_DescribePullThroughCacheRulesCommand).build() {
+  static {
+    __name(this, "DescribePullThroughCacheRulesCommand");
+  }
+};
+
+// src/commands/DescribeRegistryCommand.ts
+
+
+
+var DescribeRegistryCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "DescribeRegistry", {}).n("ECRClient", "DescribeRegistryCommand").f(void 0, void 0).ser(se_DescribeRegistryCommand).de(de_DescribeRegistryCommand).build() {
+  static {
+    __name(this, "DescribeRegistryCommand");
+  }
+};
+
+// src/commands/DescribeRepositoriesCommand.ts
+
+
+
+var DescribeRepositoriesCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "DescribeRepositories", {}).n("ECRClient", "DescribeRepositoriesCommand").f(void 0, void 0).ser(se_DescribeRepositoriesCommand).de(de_DescribeRepositoriesCommand).build() {
+  static {
+    __name(this, "DescribeRepositoriesCommand");
+  }
+};
+
+// src/commands/DescribeRepositoryCreationTemplatesCommand.ts
+
+
+
+var DescribeRepositoryCreationTemplatesCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "DescribeRepositoryCreationTemplates", {}).n("ECRClient", "DescribeRepositoryCreationTemplatesCommand").f(void 0, void 0).ser(se_DescribeRepositoryCreationTemplatesCommand).de(de_DescribeRepositoryCreationTemplatesCommand).build() {
+  static {
+    __name(this, "DescribeRepositoryCreationTemplatesCommand");
+  }
+};
+
+// src/commands/GetAccountSettingCommand.ts
+
+
+
+var GetAccountSettingCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "GetAccountSetting", {}).n("ECRClient", "GetAccountSettingCommand").f(void 0, void 0).ser(se_GetAccountSettingCommand).de(de_GetAccountSettingCommand).build() {
+  static {
+    __name(this, "GetAccountSettingCommand");
+  }
+};
+
+// src/commands/GetAuthorizationTokenCommand.ts
+
+
+
+var GetAuthorizationTokenCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "GetAuthorizationToken", {}).n("ECRClient", "GetAuthorizationTokenCommand").f(void 0, void 0).ser(se_GetAuthorizationTokenCommand).de(de_GetAuthorizationTokenCommand).build() {
+  static {
+    __name(this, "GetAuthorizationTokenCommand");
+  }
+};
+
+// src/commands/GetDownloadUrlForLayerCommand.ts
+
+
+
+var GetDownloadUrlForLayerCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "GetDownloadUrlForLayer", {}).n("ECRClient", "GetDownloadUrlForLayerCommand").f(void 0, void 0).ser(se_GetDownloadUrlForLayerCommand).de(de_GetDownloadUrlForLayerCommand).build() {
+  static {
+    __name(this, "GetDownloadUrlForLayerCommand");
+  }
+};
+
+// src/commands/GetLifecyclePolicyCommand.ts
+
+
+
+var GetLifecyclePolicyCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "GetLifecyclePolicy", {}).n("ECRClient", "GetLifecyclePolicyCommand").f(void 0, void 0).ser(se_GetLifecyclePolicyCommand).de(de_GetLifecyclePolicyCommand).build() {
+  static {
+    __name(this, "GetLifecyclePolicyCommand");
+  }
+};
+
+// src/commands/GetLifecyclePolicyPreviewCommand.ts
+
+
+
+var GetLifecyclePolicyPreviewCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "GetLifecyclePolicyPreview", {}).n("ECRClient", "GetLifecyclePolicyPreviewCommand").f(void 0, void 0).ser(se_GetLifecyclePolicyPreviewCommand).de(de_GetLifecyclePolicyPreviewCommand).build() {
+  static {
+    __name(this, "GetLifecyclePolicyPreviewCommand");
+  }
+};
+
+// src/commands/GetRegistryPolicyCommand.ts
+
+
+
+var GetRegistryPolicyCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "GetRegistryPolicy", {}).n("ECRClient", "GetRegistryPolicyCommand").f(void 0, void 0).ser(se_GetRegistryPolicyCommand).de(de_GetRegistryPolicyCommand).build() {
+  static {
+    __name(this, "GetRegistryPolicyCommand");
+  }
+};
+
+// src/commands/GetRegistryScanningConfigurationCommand.ts
+
+
+
+var GetRegistryScanningConfigurationCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "GetRegistryScanningConfiguration", {}).n("ECRClient", "GetRegistryScanningConfigurationCommand").f(void 0, void 0).ser(se_GetRegistryScanningConfigurationCommand).de(de_GetRegistryScanningConfigurationCommand).build() {
+  static {
+    __name(this, "GetRegistryScanningConfigurationCommand");
+  }
+};
+
+// src/commands/GetRepositoryPolicyCommand.ts
+
+
+
+var GetRepositoryPolicyCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "GetRepositoryPolicy", {}).n("ECRClient", "GetRepositoryPolicyCommand").f(void 0, void 0).ser(se_GetRepositoryPolicyCommand).de(de_GetRepositoryPolicyCommand).build() {
+  static {
+    __name(this, "GetRepositoryPolicyCommand");
+  }
+};
+
+// src/commands/InitiateLayerUploadCommand.ts
+
+
+
+var InitiateLayerUploadCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "InitiateLayerUpload", {}).n("ECRClient", "InitiateLayerUploadCommand").f(void 0, void 0).ser(se_InitiateLayerUploadCommand).de(de_InitiateLayerUploadCommand).build() {
+  static {
+    __name(this, "InitiateLayerUploadCommand");
+  }
+};
+
+// src/commands/ListImagesCommand.ts
+
+
+
+var ListImagesCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "ListImages", {}).n("ECRClient", "ListImagesCommand").f(void 0, void 0).ser(se_ListImagesCommand).de(de_ListImagesCommand).build() {
+  static {
+    __name(this, "ListImagesCommand");
+  }
+};
+
+// src/commands/ListTagsForResourceCommand.ts
+
+
+
+var ListTagsForResourceCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "ListTagsForResource", {}).n("ECRClient", "ListTagsForResourceCommand").f(void 0, void 0).ser(se_ListTagsForResourceCommand).de(de_ListTagsForResourceCommand).build() {
+  static {
+    __name(this, "ListTagsForResourceCommand");
+  }
+};
+
+// src/commands/PutAccountSettingCommand.ts
+
+
+
+var PutAccountSettingCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "PutAccountSetting", {}).n("ECRClient", "PutAccountSettingCommand").f(void 0, void 0).ser(se_PutAccountSettingCommand).de(de_PutAccountSettingCommand).build() {
+  static {
+    __name(this, "PutAccountSettingCommand");
+  }
+};
+
+// src/commands/PutImageCommand.ts
+
+
+
+var PutImageCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "PutImage", {}).n("ECRClient", "PutImageCommand").f(void 0, void 0).ser(se_PutImageCommand).de(de_PutImageCommand).build() {
+  static {
+    __name(this, "PutImageCommand");
+  }
+};
+
+// src/commands/PutImageScanningConfigurationCommand.ts
+
+
+
+var PutImageScanningConfigurationCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "PutImageScanningConfiguration", {}).n("ECRClient", "PutImageScanningConfigurationCommand").f(void 0, void 0).ser(se_PutImageScanningConfigurationCommand).de(de_PutImageScanningConfigurationCommand).build() {
+  static {
+    __name(this, "PutImageScanningConfigurationCommand");
+  }
+};
+
+// src/commands/PutImageTagMutabilityCommand.ts
+
+
+
+var PutImageTagMutabilityCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "PutImageTagMutability", {}).n("ECRClient", "PutImageTagMutabilityCommand").f(void 0, void 0).ser(se_PutImageTagMutabilityCommand).de(de_PutImageTagMutabilityCommand).build() {
+  static {
+    __name(this, "PutImageTagMutabilityCommand");
+  }
+};
+
+// src/commands/PutLifecyclePolicyCommand.ts
+
+
+
+var PutLifecyclePolicyCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "PutLifecyclePolicy", {}).n("ECRClient", "PutLifecyclePolicyCommand").f(void 0, void 0).ser(se_PutLifecyclePolicyCommand).de(de_PutLifecyclePolicyCommand).build() {
+  static {
+    __name(this, "PutLifecyclePolicyCommand");
+  }
+};
+
+// src/commands/PutRegistryPolicyCommand.ts
+
+
+
+var PutRegistryPolicyCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "PutRegistryPolicy", {}).n("ECRClient", "PutRegistryPolicyCommand").f(void 0, void 0).ser(se_PutRegistryPolicyCommand).de(de_PutRegistryPolicyCommand).build() {
+  static {
+    __name(this, "PutRegistryPolicyCommand");
+  }
+};
+
+// src/commands/PutRegistryScanningConfigurationCommand.ts
+
+
+
+var PutRegistryScanningConfigurationCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "PutRegistryScanningConfiguration", {}).n("ECRClient", "PutRegistryScanningConfigurationCommand").f(void 0, void 0).ser(se_PutRegistryScanningConfigurationCommand).de(de_PutRegistryScanningConfigurationCommand).build() {
+  static {
+    __name(this, "PutRegistryScanningConfigurationCommand");
+  }
+};
+
+// src/commands/PutReplicationConfigurationCommand.ts
+
+
+
+var PutReplicationConfigurationCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "PutReplicationConfiguration", {}).n("ECRClient", "PutReplicationConfigurationCommand").f(void 0, void 0).ser(se_PutReplicationConfigurationCommand).de(de_PutReplicationConfigurationCommand).build() {
+  static {
+    __name(this, "PutReplicationConfigurationCommand");
+  }
+};
+
+// src/commands/SetRepositoryPolicyCommand.ts
+
+
+
+var SetRepositoryPolicyCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "SetRepositoryPolicy", {}).n("ECRClient", "SetRepositoryPolicyCommand").f(void 0, void 0).ser(se_SetRepositoryPolicyCommand).de(de_SetRepositoryPolicyCommand).build() {
+  static {
+    __name(this, "SetRepositoryPolicyCommand");
+  }
+};
+
+// src/commands/StartImageScanCommand.ts
+
+
+
+var StartImageScanCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "StartImageScan", {}).n("ECRClient", "StartImageScanCommand").f(void 0, void 0).ser(se_StartImageScanCommand).de(de_StartImageScanCommand).build() {
+  static {
+    __name(this, "StartImageScanCommand");
+  }
+};
+
+// src/commands/StartLifecyclePolicyPreviewCommand.ts
+
+
+
+var StartLifecyclePolicyPreviewCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "StartLifecyclePolicyPreview", {}).n("ECRClient", "StartLifecyclePolicyPreviewCommand").f(void 0, void 0).ser(se_StartLifecyclePolicyPreviewCommand).de(de_StartLifecyclePolicyPreviewCommand).build() {
+  static {
+    __name(this, "StartLifecyclePolicyPreviewCommand");
+  }
+};
+
+// src/commands/TagResourceCommand.ts
+
+
+
+var TagResourceCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "TagResource", {}).n("ECRClient", "TagResourceCommand").f(void 0, void 0).ser(se_TagResourceCommand).de(de_TagResourceCommand).build() {
+  static {
+    __name(this, "TagResourceCommand");
+  }
+};
+
+// src/commands/UntagResourceCommand.ts
+
+
+
+var UntagResourceCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "UntagResource", {}).n("ECRClient", "UntagResourceCommand").f(void 0, void 0).ser(se_UntagResourceCommand).de(de_UntagResourceCommand).build() {
+  static {
+    __name(this, "UntagResourceCommand");
+  }
+};
+
+// src/commands/UpdatePullThroughCacheRuleCommand.ts
+
+
+
+var UpdatePullThroughCacheRuleCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "UpdatePullThroughCacheRule", {}).n("ECRClient", "UpdatePullThroughCacheRuleCommand").f(void 0, void 0).ser(se_UpdatePullThroughCacheRuleCommand).de(de_UpdatePullThroughCacheRuleCommand).build() {
+  static {
+    __name(this, "UpdatePullThroughCacheRuleCommand");
+  }
+};
+
+// src/commands/UpdateRepositoryCreationTemplateCommand.ts
+
+
+
+var UpdateRepositoryCreationTemplateCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "UpdateRepositoryCreationTemplate", {}).n("ECRClient", "UpdateRepositoryCreationTemplateCommand").f(void 0, void 0).ser(se_UpdateRepositoryCreationTemplateCommand).de(de_UpdateRepositoryCreationTemplateCommand).build() {
+  static {
+    __name(this, "UpdateRepositoryCreationTemplateCommand");
+  }
+};
+
+// src/commands/UploadLayerPartCommand.ts
+
+
+
+var UploadLayerPartCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "UploadLayerPart", {}).n("ECRClient", "UploadLayerPartCommand").f(void 0, void 0).ser(se_UploadLayerPartCommand).de(de_UploadLayerPartCommand).build() {
+  static {
+    __name(this, "UploadLayerPartCommand");
+  }
+};
+
+// src/commands/ValidatePullThroughCacheRuleCommand.ts
+
+
+
+var ValidatePullThroughCacheRuleCommand = class extends import_smithy_client.Command.classBuilder().ep(commonParams).m(function(Command, cs, config, o) {
+  return [
+    (0, import_middleware_serde.getSerdePlugin)(config, this.serialize, this.deserialize),
+    (0, import_middleware_endpoint.getEndpointPlugin)(config, Command.getEndpointParameterInstructions())
+  ];
+}).s("AmazonEC2ContainerRegistry_V20150921", "ValidatePullThroughCacheRule", {}).n("ECRClient", "ValidatePullThroughCacheRuleCommand").f(void 0, void 0).ser(se_ValidatePullThroughCacheRuleCommand).de(de_ValidatePullThroughCacheRuleCommand).build() {
+  static {
+    __name(this, "ValidatePullThroughCacheRuleCommand");
+  }
+};
+
+// src/ECR.ts
+var commands = {
+  BatchCheckLayerAvailabilityCommand,
+  BatchDeleteImageCommand,
+  BatchGetImageCommand,
+  BatchGetRepositoryScanningConfigurationCommand,
+  CompleteLayerUploadCommand,
+  CreatePullThroughCacheRuleCommand,
+  CreateRepositoryCommand,
+  CreateRepositoryCreationTemplateCommand,
+  DeleteLifecyclePolicyCommand,
+  DeletePullThroughCacheRuleCommand,
+  DeleteRegistryPolicyCommand,
+  DeleteRepositoryCommand,
+  DeleteRepositoryCreationTemplateCommand,
+  DeleteRepositoryPolicyCommand,
+  DescribeImageReplicationStatusCommand,
+  DescribeImagesCommand,
+  DescribeImageScanFindingsCommand,
+  DescribePullThroughCacheRulesCommand,
+  DescribeRegistryCommand,
+  DescribeRepositoriesCommand,
+  DescribeRepositoryCreationTemplatesCommand,
+  GetAccountSettingCommand,
+  GetAuthorizationTokenCommand,
+  GetDownloadUrlForLayerCommand,
+  GetLifecyclePolicyCommand,
+  GetLifecyclePolicyPreviewCommand,
+  GetRegistryPolicyCommand,
+  GetRegistryScanningConfigurationCommand,
+  GetRepositoryPolicyCommand,
+  InitiateLayerUploadCommand,
+  ListImagesCommand,
+  ListTagsForResourceCommand,
+  PutAccountSettingCommand,
+  PutImageCommand,
+  PutImageScanningConfigurationCommand,
+  PutImageTagMutabilityCommand,
+  PutLifecyclePolicyCommand,
+  PutRegistryPolicyCommand,
+  PutRegistryScanningConfigurationCommand,
+  PutReplicationConfigurationCommand,
+  SetRepositoryPolicyCommand,
+  StartImageScanCommand,
+  StartLifecyclePolicyPreviewCommand,
+  TagResourceCommand,
+  UntagResourceCommand,
+  UpdatePullThroughCacheRuleCommand,
+  UpdateRepositoryCreationTemplateCommand,
+  UploadLayerPartCommand,
+  ValidatePullThroughCacheRuleCommand
+};
+var ECR = class extends ECRClient {
+  static {
+    __name(this, "ECR");
+  }
+};
+(0, import_smithy_client.createAggregatedClient)(commands, ECR);
+
+// src/pagination/DescribeImageScanFindingsPaginator.ts
+
+var paginateDescribeImageScanFindings = (0, import_core.createPaginator)(ECRClient, DescribeImageScanFindingsCommand, "nextToken", "nextToken", "maxResults");
+
+// src/pagination/DescribeImagesPaginator.ts
+
+var paginateDescribeImages = (0, import_core.createPaginator)(ECRClient, DescribeImagesCommand, "nextToken", "nextToken", "maxResults");
+
+// src/pagination/DescribePullThroughCacheRulesPaginator.ts
+
+var paginateDescribePullThroughCacheRules = (0, import_core.createPaginator)(ECRClient, DescribePullThroughCacheRulesCommand, "nextToken", "nextToken", "maxResults");
+
+// src/pagination/DescribeRepositoriesPaginator.ts
+
+var paginateDescribeRepositories = (0, import_core.createPaginator)(ECRClient, DescribeRepositoriesCommand, "nextToken", "nextToken", "maxResults");
+
+// src/pagination/DescribeRepositoryCreationTemplatesPaginator.ts
+
+var paginateDescribeRepositoryCreationTemplates = (0, import_core.createPaginator)(ECRClient, DescribeRepositoryCreationTemplatesCommand, "nextToken", "nextToken", "maxResults");
+
+// src/pagination/GetLifecyclePolicyPreviewPaginator.ts
+
+var paginateGetLifecyclePolicyPreview = (0, import_core.createPaginator)(ECRClient, GetLifecyclePolicyPreviewCommand, "nextToken", "nextToken", "maxResults");
+
+// src/pagination/ListImagesPaginator.ts
+
+var paginateListImages = (0, import_core.createPaginator)(ECRClient, ListImagesCommand, "nextToken", "nextToken", "maxResults");
+
+// src/waiters/waitForImageScanComplete.ts
+var import_util_waiter = __nccwpck_require__(9493);
+var checkState = /* @__PURE__ */ __name(async (client, input) => {
+  let reason;
+  try {
+    const result = await client.send(new DescribeImageScanFindingsCommand(input));
+    reason = result;
+    try {
+      const returnComparator = /* @__PURE__ */ __name(() => {
+        return result.imageScanStatus.status;
+      }, "returnComparator");
+      if (returnComparator() === "COMPLETE") {
+        return { state: import_util_waiter.WaiterState.SUCCESS, reason };
+      }
+    } catch (e) {
+    }
+    try {
+      const returnComparator = /* @__PURE__ */ __name(() => {
+        return result.imageScanStatus.status;
+      }, "returnComparator");
+      if (returnComparator() === "FAILED") {
+        return { state: import_util_waiter.WaiterState.FAILURE, reason };
+      }
+    } catch (e) {
+    }
+  } catch (exception) {
+    reason = exception;
+  }
+  return { state: import_util_waiter.WaiterState.RETRY, reason };
+}, "checkState");
+var waitForImageScanComplete = /* @__PURE__ */ __name(async (params, input) => {
+  const serviceDefaults = { minDelay: 5, maxDelay: 120 };
+  return (0, import_util_waiter.createWaiter)({ ...serviceDefaults, ...params }, input, checkState);
+}, "waitForImageScanComplete");
+var waitUntilImageScanComplete = /* @__PURE__ */ __name(async (params, input) => {
+  const serviceDefaults = { minDelay: 5, maxDelay: 120 };
+  const result = await (0, import_util_waiter.createWaiter)({ ...serviceDefaults, ...params }, input, checkState);
+  return (0, import_util_waiter.checkExceptions)(result);
+}, "waitUntilImageScanComplete");
+
+// src/waiters/waitForLifecyclePolicyPreviewComplete.ts
+
+var checkState2 = /* @__PURE__ */ __name(async (client, input) => {
+  let reason;
+  try {
+    const result = await client.send(new GetLifecyclePolicyPreviewCommand(input));
+    reason = result;
+    try {
+      const returnComparator = /* @__PURE__ */ __name(() => {
+        return result.status;
+      }, "returnComparator");
+      if (returnComparator() === "COMPLETE") {
+        return { state: import_util_waiter.WaiterState.SUCCESS, reason };
+      }
+    } catch (e) {
+    }
+    try {
+      const returnComparator = /* @__PURE__ */ __name(() => {
+        return result.status;
+      }, "returnComparator");
+      if (returnComparator() === "FAILED") {
+        return { state: import_util_waiter.WaiterState.FAILURE, reason };
+      }
+    } catch (e) {
+    }
+  } catch (exception) {
+    reason = exception;
+  }
+  return { state: import_util_waiter.WaiterState.RETRY, reason };
+}, "checkState");
+var waitForLifecyclePolicyPreviewComplete = /* @__PURE__ */ __name(async (params, input) => {
+  const serviceDefaults = { minDelay: 5, maxDelay: 120 };
+  return (0, import_util_waiter.createWaiter)({ ...serviceDefaults, ...params }, input, checkState2);
+}, "waitForLifecyclePolicyPreviewComplete");
+var waitUntilLifecyclePolicyPreviewComplete = /* @__PURE__ */ __name(async (params, input) => {
+  const serviceDefaults = { minDelay: 5, maxDelay: 120 };
+  const result = await (0, import_util_waiter.createWaiter)({ ...serviceDefaults, ...params }, input, checkState2);
+  return (0, import_util_waiter.checkExceptions)(result);
+}, "waitUntilLifecyclePolicyPreviewComplete");
+// Annotate the CommonJS export names for ESM import in node:
+
+0 && (0);
+
+
+
+/***/ }),
+
+/***/ 2095:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getRuntimeConfig = void 0;
+const tslib_1 = __nccwpck_require__(1577);
+const package_json_1 = tslib_1.__importDefault(__nccwpck_require__(7853));
+const core_1 = __nccwpck_require__(727);
+const credential_provider_node_1 = __nccwpck_require__(457);
+const util_user_agent_node_1 = __nccwpck_require__(2719);
+const config_resolver_1 = __nccwpck_require__(9756);
+const hash_node_1 = __nccwpck_require__(6891);
+const middleware_retry_1 = __nccwpck_require__(1121);
+const node_config_provider_1 = __nccwpck_require__(3197);
+const node_http_handler_1 = __nccwpck_require__(7786);
+const util_body_length_node_1 = __nccwpck_require__(9064);
+const util_retry_1 = __nccwpck_require__(6847);
+const runtimeConfig_shared_1 = __nccwpck_require__(6636);
+const smithy_client_1 = __nccwpck_require__(4821);
+const util_defaults_mode_node_1 = __nccwpck_require__(9892);
+const smithy_client_2 = __nccwpck_require__(4821);
+const getRuntimeConfig = (config) => {
+    (0, smithy_client_2.emitWarningIfUnsupportedVersion)(process.version);
+    const defaultsMode = (0, util_defaults_mode_node_1.resolveDefaultsModeConfig)(config);
+    const defaultConfigProvider = () => defaultsMode().then(smithy_client_1.loadConfigsForDefaultMode);
+    const clientSharedValues = (0, runtimeConfig_shared_1.getRuntimeConfig)(config);
+    (0, core_1.emitWarningIfUnsupportedVersion)(process.version);
+    const loaderConfig = {
+        profile: config?.profile,
+        logger: clientSharedValues.logger,
+    };
+    return {
+        ...clientSharedValues,
+        ...config,
+        runtime: "node",
+        defaultsMode,
+        authSchemePreference: config?.authSchemePreference ?? (0, node_config_provider_1.loadConfig)(core_1.NODE_AUTH_SCHEME_PREFERENCE_OPTIONS, loaderConfig),
+        bodyLengthChecker: config?.bodyLengthChecker ?? util_body_length_node_1.calculateBodyLength,
+        credentialDefaultProvider: config?.credentialDefaultProvider ?? credential_provider_node_1.defaultProvider,
+        defaultUserAgentProvider: config?.defaultUserAgentProvider ??
+            (0, util_user_agent_node_1.createDefaultUserAgentProvider)({ serviceId: clientSharedValues.serviceId, clientVersion: package_json_1.default.version }),
+        maxAttempts: config?.maxAttempts ?? (0, node_config_provider_1.loadConfig)(middleware_retry_1.NODE_MAX_ATTEMPT_CONFIG_OPTIONS, config),
+        region: config?.region ??
+            (0, node_config_provider_1.loadConfig)(config_resolver_1.NODE_REGION_CONFIG_OPTIONS, { ...config_resolver_1.NODE_REGION_CONFIG_FILE_OPTIONS, ...loaderConfig }),
+        requestHandler: node_http_handler_1.NodeHttpHandler.create(config?.requestHandler ?? defaultConfigProvider),
+        retryMode: config?.retryMode ??
+            (0, node_config_provider_1.loadConfig)({
+                ...middleware_retry_1.NODE_RETRY_MODE_CONFIG_OPTIONS,
+                default: async () => (await defaultConfigProvider()).retryMode || util_retry_1.DEFAULT_RETRY_MODE,
+            }, config),
+        sha256: config?.sha256 ?? hash_node_1.Hash.bind(null, "sha256"),
+        streamCollector: config?.streamCollector ?? node_http_handler_1.streamCollector,
+        useDualstackEndpoint: config?.useDualstackEndpoint ?? (0, node_config_provider_1.loadConfig)(config_resolver_1.NODE_USE_DUALSTACK_ENDPOINT_CONFIG_OPTIONS, loaderConfig),
+        useFipsEndpoint: config?.useFipsEndpoint ?? (0, node_config_provider_1.loadConfig)(config_resolver_1.NODE_USE_FIPS_ENDPOINT_CONFIG_OPTIONS, loaderConfig),
+        userAgentAppId: config?.userAgentAppId ?? (0, node_config_provider_1.loadConfig)(util_user_agent_node_1.NODE_APP_ID_CONFIG_OPTIONS, loaderConfig),
+    };
+};
+exports.getRuntimeConfig = getRuntimeConfig;
+
+
+/***/ }),
+
+/***/ 6636:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getRuntimeConfig = void 0;
+const core_1 = __nccwpck_require__(727);
+const smithy_client_1 = __nccwpck_require__(4821);
+const url_parser_1 = __nccwpck_require__(7517);
+const util_base64_1 = __nccwpck_require__(2594);
+const util_utf8_1 = __nccwpck_require__(1290);
+const httpAuthSchemeProvider_1 = __nccwpck_require__(6166);
+const endpointResolver_1 = __nccwpck_require__(9616);
+const getRuntimeConfig = (config) => {
+    return {
+        apiVersion: "2015-09-21",
+        base64Decoder: config?.base64Decoder ?? util_base64_1.fromBase64,
+        base64Encoder: config?.base64Encoder ?? util_base64_1.toBase64,
+        disableHostPrefix: config?.disableHostPrefix ?? false,
+        endpointProvider: config?.endpointProvider ?? endpointResolver_1.defaultEndpointResolver,
+        extensions: config?.extensions ?? [],
+        httpAuthSchemeProvider: config?.httpAuthSchemeProvider ?? httpAuthSchemeProvider_1.defaultECRHttpAuthSchemeProvider,
+        httpAuthSchemes: config?.httpAuthSchemes ?? [
+            {
+                schemeId: "aws.auth#sigv4",
+                identityProvider: (ipc) => ipc.getIdentityProvider("aws.auth#sigv4"),
+                signer: new core_1.AwsSdkSigV4Signer(),
+            },
+        ],
+        logger: config?.logger ?? new smithy_client_1.NoOpLogger(),
+        serviceId: config?.serviceId ?? "ECR",
+        urlParser: config?.urlParser ?? url_parser_1.parseUrl,
+        utf8Decoder: config?.utf8Decoder ?? util_utf8_1.fromUtf8,
+        utf8Encoder: config?.utf8Encoder ?? util_utf8_1.toUtf8,
+    };
+};
+exports.getRuntimeConfig = getRuntimeConfig;
+
+
+/***/ }),
+
 /***/ 1936:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -63488,6 +67601,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.deployEcs = deployEcs;
+exports.deployEcsParallel = deployEcsParallel;
 const fs = __importStar(__nccwpck_require__(9896));
 const path = __importStar(__nccwpck_require__(6928));
 const core = __importStar(__nccwpck_require__(9999));
@@ -63514,14 +67628,12 @@ async function deployEcs(params) {
         service: params.service,
         taskDefinition: newFamilyRev,
     }));
-    // Skip health check if requested
     if (params.skipHealthCheck) {
         core.info(`Skipping health check for ECS service ${params.cluster}/${params.service} to save time`);
         core.info(`Task definition update triggered successfully, but deployment stability is not being verified`);
         core.warning(`⚠️ Note: Skipping health checks may hide deployment issues. Use in CI/CD environments only.`);
         return;
     }
-    // Wait for stable (enhanced monitoring with early failure detection)
     const maxAttempts = 60;
     const pollingIntervalMs = 5000;
     const serviceDetails = `${params.cluster}/${params.service}`;
@@ -63538,24 +67650,19 @@ async function deployEcs(params) {
         }
         const primary = svc?.deployments?.find((x) => x.status === "PRIMARY");
         const pending = svc?.deployments?.some((x) => x.rolloutState === "IN_PROGRESS");
-        // Log detailed information about the deployment status
         core.info(`Deployment status [${i + 1}/${maxAttempts}]: ${primary?.rolloutState || "UNKNOWN"}`);
         if (svc.events && svc.events.length > 0) {
-            // Log the latest event
             core.info(`Latest event: ${svc.events[0].message}`);
         }
-        // Success case
         if (primary && !pending && primary.rolloutState === "COMPLETED") {
             core.info(`✅ ECS service ${serviceDetails} is stable`);
             return;
         }
-        // Failure detection
         if (primary && primary.rolloutState === "FAILED") {
             core.error(`❌ ECS deployment for ${serviceDetails} has failed`);
             core.error(`Reason: ${primary.rolloutStateReason || "Unknown reason"}`);
             throw new Error(`ECS deployment failed: ${primary.rolloutStateReason || "Unknown error"}`);
         }
-        // Check for task failures
         if (svc.events && svc.events.length > 0) {
             const recentEvents = svc.events.slice(0, 5);
             const failureIndicators = recentEvents.some(event => {
@@ -63572,7 +67679,6 @@ async function deployEcs(params) {
                 });
             }
         }
-        // Show deployment progress percentages if available
         if (primary && primary.desiredCount && primary.desiredCount > 0) {
             const runningCount = primary.runningCount || 0;
             const desiredCount = primary.desiredCount;
@@ -63583,6 +67689,22 @@ async function deployEcs(params) {
     }
     core.error(`⏱️ Timed out after ${maxAttempts * pollingIntervalMs / 60000} minutes waiting for ECS service ${serviceDetails} to stabilize`);
     throw new Error(`Deployment timeout for ECS service ${serviceDetails}`);
+}
+async function deployEcsParallel(deployments) {
+    core.info(`🚀 Deploying ${deployments.length} services in parallel...`);
+    const promises = deployments.map(async (params, index) => {
+        try {
+            core.info(`[${index + 1}/${deployments.length}] Starting deployment for ${params.service}...`);
+            await deployEcs(params);
+            core.info(`[${index + 1}/${deployments.length}] ✅ ${params.service} deployed successfully`);
+        }
+        catch (error) {
+            core.error(`[${index + 1}/${deployments.length}] ❌ Failed to deploy ${params.service}: ${error}`);
+            throw error;
+        }
+    });
+    await Promise.all(promises);
+    core.info(`🎉 All ${deployments.length} services deployed successfully!`);
 }
 
 
@@ -63628,12 +67750,28 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ecrLogin = ecrLogin;
+exports.ecrLoginWithSDK = ecrLoginWithSDK;
 exports.buildAndPush = buildAndPush;
 exports.getDigestForTag = getDigestForTag;
 const core = __importStar(__nccwpck_require__(9999));
+const client_ecr_1 = __nccwpck_require__(7077);
 const execa_1 = __nccwpck_require__(4372);
 async function ecrLogin(registry, username, password) {
     await (0, execa_1.execa)("docker", ["login", "--username", username, "--password-stdin", registry], { input: password });
+}
+async function ecrLoginWithSDK(region) {
+    const ecr = new client_ecr_1.ECRClient({ region });
+    const command = new client_ecr_1.GetAuthorizationTokenCommand({});
+    const response = await ecr.send(command);
+    const authData = response.authorizationData?.[0];
+    if (!authData?.authorizationToken) {
+        throw new Error("Failed to get ECR auth token");
+    }
+    const token = authData.authorizationToken;
+    const decoded = Buffer.from(token, 'base64').toString('utf-8');
+    const [username, pwd] = decoded.split(':');
+    const registry = authData.proxyEndpoint;
+    await ecrLogin(registry, username, pwd);
 }
 async function buildAndPush(opts) {
     const args = [
@@ -63657,7 +67795,30 @@ async function buildAndPush(opts) {
     for (const l of opts.labels)
         if (l.trim())
             args.push("--label", l);
-    args.push("--cache-from", "type=gha", "--cache-to", "type=gha,mode=max");
+    // Enhanced caching strategy
+    const cacheMode = opts.cacheMode || 'gha';
+    const cacheRegistry = opts.cacheRegistry;
+    const cacheTag = opts.cacheTag || 'cache';
+    switch (cacheMode) {
+        case 'ecr':
+        case 'registry':
+            if (!cacheRegistry) {
+                core.warning('Cache registry not provided, falling back to GHA cache');
+                args.push("--cache-from", "type=gha", "--cache-to", "type=gha,mode=max");
+            }
+            else {
+                const cacheImage = `${cacheRegistry}:${cacheTag}`;
+                args.push("--cache-from", `type=registry,ref=${cacheImage}`);
+                args.push("--cache-to", `type=registry,ref=${cacheImage},mode=max`);
+                core.info(`Using ECR-based caching: ${cacheImage}`);
+            }
+            break;
+        case 'gha':
+        default:
+            args.push("--cache-from", "type=gha", "--cache-to", "type=gha,mode=max");
+            core.info('Using GitHub Actions cache');
+            break;
+    }
     core.info(`Running: docker ${args.join(" ")}`);
     await (0, execa_1.execa)("docker", args, { stdio: "inherit" });
 }
@@ -63724,6 +67885,7 @@ const slackNotifier_1 = __nccwpck_require__(9987);
 const container_1 = __nccwpck_require__(5462);
 const ecs_1 = __nccwpck_require__(4358);
 const apprunner_1 = __nccwpck_require__(7730);
+const security_1 = __nccwpck_require__(9975);
 function splitLines(s) {
     return (s || "")
         .split(/\r?\n/)
@@ -63732,9 +67894,14 @@ function splitLines(s) {
 }
 async function run() {
     const target = core.getInput("target", { required: true });
-    const region = core.getInput("awsRegion", { required: true });
     const ecrRepository = core.getInput("ecrRepository", { required: true });
     const imageTag = core.getInput("imageTag") || "staging";
+    // AWS
+    const region = core.getInput("awsRegion", { required: true });
+    const awsAccessKeyId = core.getInput("awsAccessKeyId");
+    const awsSecretAccessKey = core.getInput("awsSecretAccessKey");
+    const awsSessionToken = core.getInput("awsSessionToken");
+    // Docker image
     const buildContext = core.getInput("buildContext") || ".";
     const dockerfile = core.getInput("dockerfile") || "Dockerfile";
     const buildTarget = core.getInput("buildTarget") || "";
@@ -63742,18 +67909,41 @@ async function run() {
     const buildArgs = splitLines(core.getInput("buildArgs"));
     const extraImageTags = splitLines(core.getInput("extraImageTags"));
     const extraLabels = splitLines(core.getInput("extraLabels"));
+    // Caching
+    const cacheMode = core.getInput("cacheMode") || "gha";
+    const cacheTag = core.getInput("cacheTag") || "cache";
+    // Security
+    const skipSecurityScan = core.getBooleanInput("skipSecurityScan") || false;
+    const securitySeverity = core.getInput("securitySeverity") || "HIGH,CRITICAL";
+    const securityIgnoreUnfixed = core.getBooleanInput("securityIgnoreUnfixed") || true;
+    // ECS
     const ecsCluster = core.getInput("ecsCluster");
+    // 1. Web service
     const ecsServiceWeb = core.getInput("ecsServiceWeb");
-    const ecsServiceWorker = core.getInput("ecsServiceWorker");
     const taskDefWebPath = core.getInput("taskDefWebPath");
-    const taskDefWorkerPath = core.getInput("taskDefWorkerPath");
     const containerWebName = core.getInput("containerWebName") || "web";
+    // 2. Worker service
+    const ecsServiceWorker = core.getInput("ecsServiceWorker");
+    const taskDefWorkerPath = core.getInput("taskDefWorkerPath");
     const containerWorkerName = core.getInput("containerWorkerName") || "sidekiq";
+    //  3. Admin service (Optional)
+    const ecsServiceAdmin = core.getInput("ecsServiceAdmin");
+    const taskDefAdminPath = core.getInput("taskDefAdminPath");
+    const containerAdminName = core.getInput("containerAdminName") || "web";
+    // Notifier
     const skipHealthCheck = core.getBooleanInput("skipHealthCheck") || false;
     const skipSlackNotify = core.getBooleanInput("skipSlackNotify") || false;
     const slackChannelId = core.getInput("slackChannelId");
     const environmentName = core.getInput("environmentName") || "Staging";
     const slackToken = process.env.SLACK_BOT_TOKEN || "";
+    if (awsAccessKeyId && awsSecretAccessKey) {
+        process.env.AWS_ACCESS_KEY_ID = awsAccessKeyId;
+        process.env.AWS_SECRET_ACCESS_KEY = awsSecretAccessKey;
+        if (awsSessionToken) {
+            process.env.AWS_SESSION_TOKEN = awsSessionToken;
+        }
+    }
+    await (0, container_1.ecrLoginWithSDK)(region);
     const repo = github.context.payload.repository?.full_name ??
         process.env.GITHUB_REPOSITORY ??
         "<repo>";
@@ -63792,16 +67982,26 @@ async function run() {
                 `version=${branch}`,
                 ...extraLabels,
             ],
+            cacheMode: cacheMode,
+            cacheRegistry: cacheMode === 'ecr' ? registry : undefined,
+            cacheTag
         });
         const digest = await (0, container_1.getDigestForTag)(baseTagFriendly);
         const imageRef = `${registry}/${ecrRepository}@${digest}`;
         core.setOutput("imageDigest", digest);
         core.setOutput("imageRef", imageRef);
+        await (0, security_1.scanImageSecurity)({
+            imageRef: baseTagFriendly,
+            severity: securitySeverity,
+            ignoreUnfixed: securityIgnoreUnfixed,
+            skipScan: skipSecurityScan,
+        });
         if (target === "ecs") {
             if (!ecsCluster || !ecsServiceWeb || !taskDefWebPath) {
                 throw new Error("ECS inputs missing: ecsCluster, ecsServiceWeb, taskDefWebPath (and optionally worker)");
             }
-            await (0, ecs_1.deployEcs)({
+            const deployments = [];
+            deployments.push({
                 region,
                 cluster: ecsCluster,
                 service: ecsServiceWeb,
@@ -63811,7 +68011,7 @@ async function run() {
                 skipHealthCheck,
             });
             if (ecsServiceWorker && taskDefWorkerPath) {
-                await (0, ecs_1.deployEcs)({
+                deployments.push({
                     region,
                     cluster: ecsCluster,
                     service: ecsServiceWorker,
@@ -63821,6 +68021,18 @@ async function run() {
                     skipHealthCheck,
                 });
             }
+            if (ecsServiceAdmin && taskDefAdminPath) {
+                deployments.push({
+                    region,
+                    cluster: ecsCluster,
+                    service: ecsServiceAdmin,
+                    containerName: containerAdminName,
+                    taskDefPath: taskDefAdminPath,
+                    imagePinned: imageRef,
+                    skipHealthCheck,
+                });
+            }
+            await (0, ecs_1.deployEcsParallel)(deployments);
         }
         else if (target === "apprunner") {
             const serviceArn = core.getInput("appRunnerServiceArn", {
@@ -63856,6 +68068,159 @@ if (require.main === require.cache[eval('__filename')]) {
         core.setFailed(e?.message ?? String(e));
     });
     core.info("[XFLOWS] DONE 👌");
+}
+
+
+/***/ }),
+
+/***/ 9975:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.scanImageSecurity = scanImageSecurity;
+exports.installTrivy = installTrivy;
+const core = __importStar(__nccwpck_require__(9999));
+const execa_1 = __nccwpck_require__(4372);
+async function scanImageSecurity(opts) {
+    if (opts.skipScan) {
+        core.info("🔍 Security scanning skipped");
+        return null;
+    }
+    const severity = opts.severity || "HIGH,CRITICAL";
+    const ignoreUnfixed = opts.ignoreUnfixed ?? true;
+    core.info("🔍 Scanning image for security vulnerabilities...");
+    try {
+        // Check if Trivy is available
+        try {
+            await (0, execa_1.execa)("trivy", ["--version"]);
+        }
+        catch (error) {
+            core.warning("⚠️ Trivy not found, skipping security scan");
+            core.info("💡 Install Trivy with: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin");
+            return null;
+        }
+        // Run Trivy scan
+        const { stdout } = await (0, execa_1.execa)("trivy", [
+            "image",
+            "--format",
+            "json",
+            "--severity",
+            severity,
+            ignoreUnfixed ? "--ignore-unfixed" : "",
+            opts.imageRef,
+        ].filter(Boolean));
+        const result = JSON.parse(stdout);
+        // Parse results
+        const vulnerabilities = {
+            CRITICAL: 0,
+            HIGH: 0,
+            MEDIUM: 0,
+            LOW: 0,
+            UNKNOWN: 0,
+        };
+        if (result.Results) {
+            for (const resultItem of result.Results) {
+                if (resultItem.Vulnerabilities) {
+                    for (const vuln of resultItem.Vulnerabilities) {
+                        const severity = vuln.Severity?.toUpperCase() || "UNKNOWN";
+                        if (severity in vulnerabilities) {
+                            vulnerabilities[severity]++;
+                        }
+                    }
+                }
+            }
+        }
+        const totalVulns = Object.values(vulnerabilities).reduce((a, b) => a + b, 0);
+        const hasCritical = vulnerabilities.CRITICAL > 0;
+        const hasHigh = vulnerabilities.HIGH > 0;
+        const scanResult = {
+            vulnerabilities,
+            summary: `Found ${totalVulns} vulnerabilities (${vulnerabilities.CRITICAL} CRITICAL, ${vulnerabilities.HIGH} HIGH)`,
+            hasIssues: hasCritical || hasHigh,
+        };
+        // Display results as warnings (non-blocking)
+        if (scanResult.hasIssues) {
+            core.warning("🚨 Security vulnerabilities detected (non-blocking):");
+            core.warning(`   ${scanResult.summary}`);
+            if (vulnerabilities.CRITICAL > 0) {
+                core.warning(`   ⚠️ ${vulnerabilities.CRITICAL} CRITICAL vulnerabilities found`);
+            }
+            if (vulnerabilities.HIGH > 0) {
+                core.warning(`   ⚠️ ${vulnerabilities.HIGH} HIGH vulnerabilities found`);
+            }
+            core.info("💡 Review vulnerabilities with: trivy image --severity HIGH,CRITICAL <image>");
+        }
+        else {
+            core.info("✅ No critical or high-severity vulnerabilities found");
+        }
+        if (vulnerabilities.MEDIUM > 0 || vulnerabilities.LOW > 0) {
+            core.info(`ℹ️ ${vulnerabilities.MEDIUM} MEDIUM, ${vulnerabilities.LOW} LOW severity issues (informational)`);
+        }
+        return scanResult;
+    }
+    catch (error) {
+        // Non-fatal error - just log as warning
+        core.warning(`⚠️ Security scan failed: ${error}`);
+        core.info("💡 Security scanning is optional and won't block deployment");
+        return null;
+    }
+}
+async function installTrivy() {
+    try {
+        core.info("📦 Installing Trivy for security scanning...");
+        // Try to install Trivy
+        await (0, execa_1.execa)("curl", [
+            "-sfL",
+            "https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh",
+            "|",
+            "sh",
+            "-s",
+            "--",
+            "-b",
+            "/usr/local/bin"
+        ], { shell: true });
+        core.info("✅ Trivy installed successfully");
+        return true;
+    }
+    catch (error) {
+        core.warning("⚠️ Could not install Trivy automatically");
+        return false;
+    }
 }
 
 
@@ -77867,6 +82232,14 @@ function fixResponseChunkedTransferBadEnding(request, errorCallback) {
 
 "use strict";
 module.exports = /*#__PURE__*/JSON.parse('{"name":"@aws-sdk/client-apprunner","description":"AWS SDK for JavaScript Apprunner Client for Node.js, Browser and React Native","version":"3.864.0","scripts":{"build":"concurrently \'yarn:build:cjs\' \'yarn:build:es\' \'yarn:build:types\'","build:cjs":"node ../../scripts/compilation/inline client-apprunner","build:es":"tsc -p tsconfig.es.json","build:include:deps":"lerna run --scope $npm_package_name --include-dependencies build","build:types":"tsc -p tsconfig.types.json","build:types:downlevel":"downlevel-dts dist-types dist-types/ts3.4","clean":"rimraf ./dist-* && rimraf *.tsbuildinfo","extract:docs":"api-extractor run --local","generate:client":"node ../../scripts/generate-clients/single-service --solo apprunner"},"main":"./dist-cjs/index.js","types":"./dist-types/index.d.ts","module":"./dist-es/index.js","sideEffects":false,"dependencies":{"@aws-crypto/sha256-browser":"5.2.0","@aws-crypto/sha256-js":"5.2.0","@aws-sdk/core":"3.864.0","@aws-sdk/credential-provider-node":"3.864.0","@aws-sdk/middleware-host-header":"3.862.0","@aws-sdk/middleware-logger":"3.862.0","@aws-sdk/middleware-recursion-detection":"3.862.0","@aws-sdk/middleware-user-agent":"3.864.0","@aws-sdk/region-config-resolver":"3.862.0","@aws-sdk/types":"3.862.0","@aws-sdk/util-endpoints":"3.862.0","@aws-sdk/util-user-agent-browser":"3.862.0","@aws-sdk/util-user-agent-node":"3.864.0","@smithy/config-resolver":"^4.1.5","@smithy/core":"^3.8.0","@smithy/fetch-http-handler":"^5.1.1","@smithy/hash-node":"^4.0.5","@smithy/invalid-dependency":"^4.0.5","@smithy/middleware-content-length":"^4.0.5","@smithy/middleware-endpoint":"^4.1.18","@smithy/middleware-retry":"^4.1.19","@smithy/middleware-serde":"^4.0.9","@smithy/middleware-stack":"^4.0.5","@smithy/node-config-provider":"^4.1.4","@smithy/node-http-handler":"^4.1.1","@smithy/protocol-http":"^5.1.3","@smithy/smithy-client":"^4.4.10","@smithy/types":"^4.3.2","@smithy/url-parser":"^4.0.5","@smithy/util-base64":"^4.0.0","@smithy/util-body-length-browser":"^4.0.0","@smithy/util-body-length-node":"^4.0.0","@smithy/util-defaults-mode-browser":"^4.0.26","@smithy/util-defaults-mode-node":"^4.0.26","@smithy/util-endpoints":"^3.0.7","@smithy/util-middleware":"^4.0.5","@smithy/util-retry":"^4.0.7","@smithy/util-utf8":"^4.0.0","tslib":"^2.6.2"},"devDependencies":{"@tsconfig/node18":"18.2.4","@types/node":"^18.19.69","concurrently":"7.0.0","downlevel-dts":"0.10.1","rimraf":"3.0.2","typescript":"~5.8.3"},"engines":{"node":">=18.0.0"},"typesVersions":{"<4.0":{"dist-types/*":["dist-types/ts3.4/*"]}},"files":["dist-*/**"],"author":{"name":"AWS SDK for JavaScript Team","url":"https://aws.amazon.com/javascript/"},"license":"Apache-2.0","browser":{"./dist-es/runtimeConfig":"./dist-es/runtimeConfig.browser"},"react-native":{"./dist-es/runtimeConfig":"./dist-es/runtimeConfig.native"},"homepage":"https://github.com/aws/aws-sdk-js-v3/tree/main/clients/client-apprunner","repository":{"type":"git","url":"https://github.com/aws/aws-sdk-js-v3.git","directory":"clients/client-apprunner"}}');
+
+/***/ }),
+
+/***/ 7853:
+/***/ ((module) => {
+
+"use strict";
+module.exports = /*#__PURE__*/JSON.parse('{"name":"@aws-sdk/client-ecr","description":"AWS SDK for JavaScript Ecr Client for Node.js, Browser and React Native","version":"3.864.0","scripts":{"build":"concurrently \'yarn:build:cjs\' \'yarn:build:es\' \'yarn:build:types\'","build:cjs":"node ../../scripts/compilation/inline client-ecr","build:es":"tsc -p tsconfig.es.json","build:include:deps":"lerna run --scope $npm_package_name --include-dependencies build","build:types":"tsc -p tsconfig.types.json","build:types:downlevel":"downlevel-dts dist-types dist-types/ts3.4","clean":"rimraf ./dist-* && rimraf *.tsbuildinfo","extract:docs":"api-extractor run --local","generate:client":"node ../../scripts/generate-clients/single-service --solo ecr"},"main":"./dist-cjs/index.js","types":"./dist-types/index.d.ts","module":"./dist-es/index.js","sideEffects":false,"dependencies":{"@aws-crypto/sha256-browser":"5.2.0","@aws-crypto/sha256-js":"5.2.0","@aws-sdk/core":"3.864.0","@aws-sdk/credential-provider-node":"3.864.0","@aws-sdk/middleware-host-header":"3.862.0","@aws-sdk/middleware-logger":"3.862.0","@aws-sdk/middleware-recursion-detection":"3.862.0","@aws-sdk/middleware-user-agent":"3.864.0","@aws-sdk/region-config-resolver":"3.862.0","@aws-sdk/types":"3.862.0","@aws-sdk/util-endpoints":"3.862.0","@aws-sdk/util-user-agent-browser":"3.862.0","@aws-sdk/util-user-agent-node":"3.864.0","@smithy/config-resolver":"^4.1.5","@smithy/core":"^3.8.0","@smithy/fetch-http-handler":"^5.1.1","@smithy/hash-node":"^4.0.5","@smithy/invalid-dependency":"^4.0.5","@smithy/middleware-content-length":"^4.0.5","@smithy/middleware-endpoint":"^4.1.18","@smithy/middleware-retry":"^4.1.19","@smithy/middleware-serde":"^4.0.9","@smithy/middleware-stack":"^4.0.5","@smithy/node-config-provider":"^4.1.4","@smithy/node-http-handler":"^4.1.1","@smithy/protocol-http":"^5.1.3","@smithy/smithy-client":"^4.4.10","@smithy/types":"^4.3.2","@smithy/url-parser":"^4.0.5","@smithy/util-base64":"^4.0.0","@smithy/util-body-length-browser":"^4.0.0","@smithy/util-body-length-node":"^4.0.0","@smithy/util-defaults-mode-browser":"^4.0.26","@smithy/util-defaults-mode-node":"^4.0.26","@smithy/util-endpoints":"^3.0.7","@smithy/util-middleware":"^4.0.5","@smithy/util-retry":"^4.0.7","@smithy/util-utf8":"^4.0.0","@smithy/util-waiter":"^4.0.7","tslib":"^2.6.2"},"devDependencies":{"@tsconfig/node18":"18.2.4","@types/node":"^18.19.69","concurrently":"7.0.0","downlevel-dts":"0.10.1","rimraf":"3.0.2","typescript":"~5.8.3"},"engines":{"node":">=18.0.0"},"typesVersions":{"<4.0":{"dist-types/*":["dist-types/ts3.4/*"]}},"files":["dist-*/**"],"author":{"name":"AWS SDK for JavaScript Team","url":"https://aws.amazon.com/javascript/"},"license":"Apache-2.0","browser":{"./dist-es/runtimeConfig":"./dist-es/runtimeConfig.browser"},"react-native":{"./dist-es/runtimeConfig":"./dist-es/runtimeConfig.native"},"homepage":"https://github.com/aws/aws-sdk-js-v3/tree/main/clients/client-ecr","repository":{"type":"git","url":"https://github.com/aws/aws-sdk-js-v3.git","directory":"clients/client-ecr"}}');
 
 /***/ }),
 

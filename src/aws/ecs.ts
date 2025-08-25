@@ -28,7 +28,7 @@ export async function deployEcs(params: {
   taskDefPath: string;
   imagePinned: string;
   skipHealthCheck?: boolean;
-}) {
+}): Promise<void> {
   const ecs = new ECSClient({ region: params.region });
 
   const raw = fs.readFileSync(path.resolve(params.taskDefPath), "utf8");
@@ -132,5 +132,30 @@ export async function deployEcs(params: {
     `⏱️ Timed out after ${maxAttempts * pollingIntervalMs / 60000} minutes waiting for ECS service ${serviceDetails} to stabilize`
   );
   throw new Error(`Deployment timeout for ECS service ${serviceDetails}`);
+}
 
+export async function deployEcsParallel(deployments: Array<{
+  region: string;
+  cluster: string;
+  service: string;
+  containerName: string;
+  taskDefPath: string;
+  imagePinned: string;
+  skipHealthCheck?: boolean;
+}>): Promise<void> {
+  core.info(`🚀 Deploying ${deployments.length} services in parallel...`);
+  
+  const promises = deployments.map(async (params, index) => {
+    try {
+      core.info(`[${index + 1}/${deployments.length}] Starting deployment for ${params.service}...`);
+      await deployEcs(params);
+      core.info(`[${index + 1}/${deployments.length}] ✅ ${params.service} deployed successfully`);
+    } catch (error) {
+      core.error(`[${index + 1}/${deployments.length}] ❌ Failed to deploy ${params.service}: ${error}`);
+      throw error;
+    }
+  });
+  
+  await Promise.all(promises);
+  core.info(`🎉 All ${deployments.length} services deployed successfully!`);
 }

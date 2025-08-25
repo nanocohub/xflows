@@ -1,9 +1,10 @@
 import * as core from "@actions/core";
 import * as github from "@actions/github";
 import { finishedPayload, slackPost, startedPayload } from "./slackNotifier";
-import { buildAndPush, getDigestForTag } from "./container";
-import { deployEcs } from "./aws/ecs";
+import { buildAndPush, ecrLoginWithSDK, getDigestForTag } from "./container";
+import { deployEcsParallel } from "./aws/ecs";
 import { waitForAppRunnerDeployment } from "./aws/apprunner";
+import { scanImageSecurity } from "./security";
 
 export function splitLines(s: string): string[] {
 	return (s || "")
@@ -14,10 +15,15 @@ export function splitLines(s: string): string[] {
 
 async function run() {
 	const target = core.getInput("target", { required: true });
-	const region = core.getInput("awsRegion", { required: true });
 	const ecrRepository = core.getInput("ecrRepository", { required: true });
 	const imageTag = core.getInput("imageTag") || "staging";
-
+	
+	// AWS
+	const region = core.getInput("awsRegion", { required: true });
+	const awsAccessKeyId = core.getInput("awsAccessKeyId");
+	const awsSecretAccessKey = core.getInput("awsSecretAccessKey");
+	const awsSessionToken = core.getInput("awsSessionToken");
+	
 	// Docker image
 	const buildContext = core.getInput("buildContext") || ".";
 	const dockerfile = core.getInput("dockerfile") || "Dockerfile";
@@ -26,6 +32,15 @@ async function run() {
 	const buildArgs = splitLines(core.getInput("buildArgs"));
 	const extraImageTags = splitLines(core.getInput("extraImageTags"));
 	const extraLabels = splitLines(core.getInput("extraLabels"));
+
+	// Caching
+	const cacheMode = core.getInput("cacheMode") || "gha";
+	const cacheTag = core.getInput("cacheTag") || "cache";
+
+	// Security
+	const skipSecurityScan = core.getBooleanInput("skipSecurityScan") || false;
+	const securitySeverity = core.getInput("securitySeverity") || "HIGH,CRITICAL";
+	const securityIgnoreUnfixed = core.getBooleanInput("securityIgnoreUnfixed") || true;
 
 	// ECS
 	const ecsCluster = core.getInput("ecsCluster");
@@ -52,6 +67,16 @@ async function run() {
 	const slackChannelId = core.getInput("slackChannelId");
 	const environmentName = core.getInput("environmentName") || "Staging";
 	const slackToken = process.env.SLACK_BOT_TOKEN || "";
+
+	if (awsAccessKeyId && awsSecretAccessKey) {
+		process.env.AWS_ACCESS_KEY_ID = awsAccessKeyId;
+		process.env.AWS_SECRET_ACCESS_KEY = awsSecretAccessKey;
+		if (awsSessionToken) {
+			process.env.AWS_SESSION_TOKEN = awsSessionToken;
+		}
+	}
+
+	await ecrLoginWithSDK(region);
 
 	const repo =
 		github.context.payload.repository?.full_name ??
@@ -102,6 +127,9 @@ async function run() {
 				`version=${branch}`,
 				...extraLabels,
 			],
+			cacheMode: cacheMode,
+			cacheRegistry: cacheMode === 'ecr' ? registry : undefined,
+			cacheTag
 		});
 
 		const digest = await getDigestForTag(baseTagFriendly);
@@ -109,13 +137,23 @@ async function run() {
 		core.setOutput("imageDigest", digest);
 		core.setOutput("imageRef", imageRef);
 
+		await scanImageSecurity({
+			imageRef: baseTagFriendly,
+			severity: securitySeverity,
+			ignoreUnfixed: securityIgnoreUnfixed,
+			skipScan: skipSecurityScan,
+		});
+
 		if (target === "ecs") {
 			if (!ecsCluster || !ecsServiceWeb || !taskDefWebPath) {
 				throw new Error(
 					"ECS inputs missing: ecsCluster, ecsServiceWeb, taskDefWebPath (and optionally worker)",
 				);
 			}
-			await deployEcs({
+
+			const deployments = [];
+
+			deployments.push({
 				region,
 				cluster: ecsCluster,
 				service: ecsServiceWeb,
@@ -126,7 +164,7 @@ async function run() {
 			});
 
 			if (ecsServiceWorker && taskDefWorkerPath) {
-				await deployEcs({
+				deployments.push({
 					region,
 					cluster: ecsCluster,
 					service: ecsServiceWorker,
@@ -138,7 +176,7 @@ async function run() {
 			}
 
 			if (ecsServiceAdmin && taskDefAdminPath) {
-				await deployEcs({
+				deployments.push({
 					region,
 					cluster: ecsCluster,
 					service: ecsServiceAdmin,
@@ -148,6 +186,8 @@ async function run() {
 					skipHealthCheck,
 				});
 			}
+
+			await deployEcsParallel(deployments);
 		} else if (target === "apprunner") {
 			const serviceArn = core.getInput("appRunnerServiceArn", {
 				required: true,

@@ -5,7 +5,13 @@ branding: { color: "green", icon: "upload-cloud" }
 
 inputs:
   target: { required: true, description: "ecs | apprunner" }
+  
+  # AWS info
+  awsAccessKeyId: { required: true, description: "AWS access key ID"}
+  awsSecretAccessKey: { required: true, description: "AWS secret access key"}
+  awsSessionToken: { required: false, description: "AWS session token (Optional)"}
   awsRegion: { required: true, description: "aws region" }
+  
   ecrRepository: { required: true, description: "repository of ecr" }
   imageTag: { required: false, default: "staging", description: "image tag" }
 
@@ -21,6 +27,24 @@ inputs:
     { required: false, default: "", description: "additional image tags" }
   extraLabels:
     { required: false, default: "", description: "additional labels" }
+
+  # Caching
+  cacheMode:
+    {
+      required: false,
+      default: "gha",
+      description: "cache mode: gha (GitHub Actions) | ecr (ECR-based) | registry (generic registry)"
+    }
+  cacheTag:
+    { required: false, default: "cache", description: "cache image tag for ECR/registry caching" }
+
+  # Security Scanning
+  skipSecurityScan:
+    { required: false, default: false, description: "skip security vulnerability scanning" }
+  securitySeverity:
+    { required: false, default: "HIGH,CRITICAL", description: "vulnerability severity levels to check" }
+  securityIgnoreUnfixed:
+    { required: false, default: true, description: "ignore unfixed vulnerabilities in scan" }
 
   # ECS
   ecsCluster: { required: false, default: "", description: "ecs cluster name" }
@@ -47,7 +71,7 @@ inputs:
   skipHealthCheck:
     {
       required: false,
-      default: false,
+      default: "false",
       description: "skip ECS health check to speed up CI/CD workflows",
     }
 
@@ -79,7 +103,7 @@ inputs:
   skipSlackNotify:
     {
       required: false,
-      default: false,
+      default: "false",
       description: "skip Slack notifications to avoid noise in CI/CD workflows",
     }
   environmentName:

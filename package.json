@@ -5,8 +5,14 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "package": "pnpm exec ncc build src/index.ts -o dist",
-    "test": "pnpm exec vitest"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "pre-package": "node scripts/pre-package.js",
+    "package": "pnpm run pre-package && pnpm exec ncc build src/index.ts -o dist",
+    "package:skip-checks": "pnpm exec ncc build src/index.ts -o dist",
+    "test": "pnpm exec vitest",
+    "ci": "pnpm run typecheck && pnpm run lint && pnpm run test"
   },
   "keywords": [],
   "author": "",
@@ -23,7 +29,10 @@
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
     "@vercel/ncc": "^0.38.3",
+    "eslint": "^8.57.1",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
   }
