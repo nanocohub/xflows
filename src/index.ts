@@ -116,17 +116,18 @@ async function run() {
 
 		// Use the same ECR repository and imageTag for cache (no duplication)
 		let cacheRegistryUrl = undefined;
-		let cacheTagToUse = undefined;
 		
 		if (cacheMode === 'ecr' || cacheMode === 'hybrid') {
-			// Use the same ECR repository and imageTag for cache
+			// Use the same ECR repository for both image and cache
 			cacheRegistryUrl = `${registry}/${ecrRepository}`;
-			cacheTagToUse = imageTag;  // Use the same tag as main image
-			core.info(`Using ECR cache: ${cacheRegistryUrl}:${cacheTagToUse}`);
-		} else if (cacheMode === 'registry') {
-			// Use provided cacheTag for generic registry
-			cacheRegistryUrl = `${registry}/${ecrRepository}`;
-			cacheTagToUse = cacheTag;
+			
+			// Validate ECR format to prevent 401 errors
+			if (!cacheRegistryUrl.includes('.dkr.ecr.') || !cacheRegistryUrl.includes('.amazonaws.com')) {
+				core.warning('Invalid ECR registry format, falling back to GHA cache');
+				cacheRegistryUrl = undefined;
+			} else {
+				core.info(`Using ECR cache: ${cacheRegistryUrl}:${imageTag}`);
+			}
 		}
 
 		await buildAndPush({
@@ -144,7 +145,7 @@ async function run() {
 			],
 			cacheMode: cacheMode,
 			cacheRegistry: cacheRegistryUrl,
-			cacheTag: cacheTagToUse,
+			cacheTag: imageTag,  // Use same tag as image
 		});
 
 		const digest = await getDigestForTag(baseTagFriendly);

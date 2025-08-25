@@ -60,10 +60,10 @@ export async function buildAndPush(opts: {
 	for (const a of opts.buildArgs) if (a.trim()) args.push("--build-arg", a);
 	for (const l of opts.labels) if (l.trim()) args.push("--label", l);
 
-		// Enhanced caching strategy with hybrid support and no duplication
+		// Enhanced caching strategy with proper ECR format
 		const cacheMode = opts.cacheMode || 'gha';
 		const cacheRegistry = opts.cacheRegistry;
-		const cacheTag = opts.cacheTag || 'cache';  // Will be overridden by imageTag in index.ts
+		const cacheTag = opts.cacheTag || 'cache';
 
 		switch (cacheMode) {
 			case 'hybrid':
@@ -72,7 +72,8 @@ export async function buildAndPush(opts: {
 					core.warning('Hybrid cache requires cacheRegistry, falling back to GHA');
 					args.push("--cache-from", "type=gha", "--cache-to", "type=gha,mode=max");
 				} else {
-					const cacheImage = `${cacheRegistry}:${cacheTag}`;
+					// Ensure proper ECR format - no protocol, correct domain
+					const cacheImage = cacheRegistry.startsWith('http') ? cacheRegistry : `${cacheRegistry}:${cacheTag}`;
 					args.push("--cache-from", "type=gha");
 					args.push("--cache-from", `type=registry,ref=${cacheImage}`);
 					args.push("--cache-to", "type=gha,mode=max");
@@ -85,8 +86,8 @@ export async function buildAndPush(opts: {
 					core.warning('ECR cache registry not provided, falling back to GHA cache');
 					args.push("--cache-from", "type=gha", "--cache-to", "type=gha,mode=max");
 				} else {
-					// Ensure proper ECR format without protocol
-					const cacheImage = `${cacheRegistry}:${cacheTag}`;
+					// Ensure proper ECR format - no protocol, correct domain
+					const cacheImage = cacheRegistry.startsWith('http') ? cacheRegistry : `${cacheRegistry}:${cacheTag}`;
 					args.push("--cache-from", `type=registry,ref=${cacheImage}`);
 					args.push("--cache-to", `type=registry,ref=${cacheImage},mode=max`);
 					core.info(`Using ECR-based caching: ${cacheImage}`);
@@ -97,7 +98,7 @@ export async function buildAndPush(opts: {
 					core.warning('Registry cache not provided, falling back to GHA cache');
 					args.push("--cache-from", "type=gha", "--cache-to", "type=gha,mode=max");
 				} else {
-					const cacheImage = `${cacheRegistry}:${cacheTag}`;
+					const cacheImage = cacheRegistry.startsWith('http') ? cacheRegistry : `${cacheRegistry}:${cacheTag}`;
 					args.push("--cache-from", `type=registry,ref=${cacheImage}`);
 					args.push("--cache-to", `type=registry,ref=${cacheImage},mode=max`);
 					core.info(`Using registry-based caching: ${cacheImage}`);
