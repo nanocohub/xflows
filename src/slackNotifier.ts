@@ -30,16 +30,13 @@ export function startedPayload(
   branch: string,
   repo: string,
   actor: string,
-  gifUrl?: string,
+  _gifUrl?: string,
 ) {
-  const defaultGifUrl = "https://media.giphy.com/media/l3q2IYN87QjIg51QI/giphy.gif"; // Loading GIF
-  
   return {
     text: `:rocket: Deployment started (In Progress)`,
     attachments: [
       {
         color: "dbab09",
-        image_url: gifUrl || defaultGifUrl,
         fields: [
           { 
             title: "⏳ Status", 
@@ -91,26 +88,18 @@ export function finishedPayload(
   branch: string,
   repo: string,
   actor: string,
-  customGifs?: { success?: string; failure?: string }
+  _customGifs?: { success?: string; failure?: string }
 ) {
   const ok = status === "success";
   const statusText = ok ? "Completed" : "Failed";
   const emoji = ok ? ":white_check_mark:" : ":x:";
   const statusEmoji = ok ? "✅" : "❌";
   
-  const defaultSuccessGif = "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNGE0angyamJzNzhsNTMwbzdrMTg4azNwbGh2azN0MTZkcjl3a2RvdCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/umYMU8G2ixG5mJBDo5/giphy.gif";
-  const defaultFailureGif = "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHp3cGxieGxnZTB6ZGdlYWJpYmVuNWJ5d2loeGJpeXEyZnlzY25pciZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/5xaOcLyjXRo4TcX1SwE/giphy.gif";
-  
-  const gifUrl = ok 
-    ? (customGifs?.success || defaultSuccessGif)
-    : (customGifs?.failure || defaultFailureGif);
-  
   return {
     text: `${emoji} Deployment finished (${statusText})`,
     attachments: [
       {
         color: ok ? "28a745" : "ff0000",
-        image_url: gifUrl,
         fields: [
           { 
             title: `${statusEmoji} Status`, 

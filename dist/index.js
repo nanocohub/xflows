@@ -63731,7 +63731,6 @@ function splitLines(s) {
         .filter(Boolean);
 }
 async function run() {
-    const stage = core.getInput("stage") || "all";
     const target = core.getInput("target", { required: true });
     const region = core.getInput("awsRegion", { required: true });
     const ecrRepository = core.getInput("ecrRepository", { required: true });
@@ -63765,127 +63764,88 @@ async function run() {
     const actor = github.context.actor ??
         process.env.GITHUB_ACTOR ??
         "<actor>";
-    // Stage: notify (started notification)
-    if ((stage === "all" || stage === "notify") && slackChannelId && slackToken && !skipSlackNotify) {
+    if (slackChannelId && slackToken && !skipSlackNotify) {
         await (0, slackNotifier_1.slackPost)(slackToken, slackChannelId, (0, slackNotifier_1.startedPayload)(environmentName, target, runUrl, branch, repo, actor));
     }
     try {
         const registry = process.env.AWS_ACCOUNT_ID
             ? `${process.env.AWS_ACCOUNT_ID}.dkr.ecr.${region}.amazonaws.com`
-            : core.getInput("registry");
-        if (!registry)
-            throw new Error("AWS_ACCOUNT_ID or registry input required");
-        let sha = github.context.sha || "<unknown>";
-        if (sha.length > 7)
-            sha = sha.substring(0, 7);
-        const tags = [imageTag];
-        if (extraImageTags)
-            tags.push(...extraImageTags);
-        // Friendly name like repo:tag format (not the @sha256:abc...)
+            : process.env.ECR_REGISTRY || "";
+        const sha = (process.env.GITHUB_SHA || "").slice(0, 40);
+        const baseTagSha = `${registry}/${ecrRepository}:${sha}`;
         const baseTagFriendly = `${registry}/${ecrRepository}:${imageTag}`;
-        let imageRef = "";
-        let digest = "";
-        // Stage: build
-        if (stage === "all" || stage === "build") {
-            core.info(`🏗️ Running build stage...`);
-            // Build the image with all tags
-            const fullTags = tags.map(tag => `${registry}/${ecrRepository}:${tag}`);
-            await (0, container_1.buildAndPush)({
-                context: buildContext,
-                dockerfile,
-                target: buildTarget || undefined,
-                platforms: buildPlatforms || undefined,
-                tags: fullTags,
-                buildArgs,
-                labels: [
-                    `revision=${sha}`,
-                    `source=${repo}`,
-                    `version=${branch}`,
-                    ...extraLabels,
-                ],
+        const tags = [
+            baseTagSha,
+            baseTagFriendly,
+            ...extraImageTags.map((t) => `${registry}/${ecrRepository}:${t}`),
+        ];
+        await (0, container_1.buildAndPush)({
+            context: buildContext,
+            dockerfile,
+            target: buildTarget || undefined,
+            platforms: buildPlatforms || undefined,
+            tags,
+            buildArgs,
+            labels: [
+                `revision=${sha}`,
+                `source=${repo}`,
+                `version=${branch}`,
+                ...extraLabels,
+            ],
+        });
+        const digest = await (0, container_1.getDigestForTag)(baseTagFriendly);
+        const imageRef = `${registry}/${ecrRepository}@${digest}`;
+        core.setOutput("imageDigest", digest);
+        core.setOutput("imageRef", imageRef);
+        if (target === "ecs") {
+            if (!ecsCluster || !ecsServiceWeb || !taskDefWebPath) {
+                throw new Error("ECS inputs missing: ecsCluster, ecsServiceWeb, taskDefWebPath (and optionally worker)");
+            }
+            await (0, ecs_1.deployEcs)({
+                region,
+                cluster: ecsCluster,
+                service: ecsServiceWeb,
+                containerName: containerWebName,
+                taskDefPath: taskDefWebPath,
+                imagePinned: imageRef,
+                skipHealthCheck,
             });
-            digest = await (0, container_1.getDigestForTag)(baseTagFriendly);
-            imageRef = `${registry}/${ecrRepository}@${digest}`;
-            core.setOutput("imageDigest", digest);
-            core.setOutput("imageRef", imageRef);
-            core.info(`📦 Image built and pushed: ${imageRef}`);
-        }
-        else if (stage === "deploy" || stage === "notify") {
-            // If we're only deploying or notifying, we need to get the digest of an existing image
-            try {
-                digest = await (0, container_1.getDigestForTag)(baseTagFriendly);
-                imageRef = `${registry}/${ecrRepository}@${digest}`;
-                core.setOutput("imageDigest", digest);
-                core.setOutput("imageRef", imageRef);
-                core.info(`🔍 Using existing image: ${imageRef}`);
-            }
-            catch (err) {
-                core.warning(`⚠️ Could not find existing image with tag ${imageTag}. This is required for deploy or notify stages.`);
-                throw new Error(`Image with tag ${imageTag} not found. Run build stage first or ensure the image exists.`);
-            }
-        }
-        // Stage: deploy
-        if ((stage === "all" || stage === "deploy") && imageRef) {
-            core.info(`🚀 Running deploy stage...`);
-            if (target === "ecs") {
-                if (!ecsCluster || !ecsServiceWeb || !taskDefWebPath) {
-                    throw new Error("ECS inputs missing: ecsCluster, ecsServiceWeb, taskDefWebPath (and optionally worker)");
-                }
+            if (ecsServiceWorker && taskDefWorkerPath) {
                 await (0, ecs_1.deployEcs)({
                     region,
                     cluster: ecsCluster,
-                    service: ecsServiceWeb,
-                    containerName: containerWebName,
-                    taskDefPath: taskDefWebPath,
+                    service: ecsServiceWorker,
+                    containerName: containerWorkerName,
+                    taskDefPath: taskDefWorkerPath,
                     imagePinned: imageRef,
                     skipHealthCheck,
                 });
-                if (ecsServiceWorker && taskDefWorkerPath) {
-                    await (0, ecs_1.deployEcs)({
-                        region,
-                        cluster: ecsCluster,
-                        service: ecsServiceWorker,
-                        containerName: containerWorkerName,
-                        taskDefPath: taskDefWorkerPath,
-                        imagePinned: imageRef,
-                        skipHealthCheck,
-                    });
-                }
-            }
-            else if (target === "apprunner") {
-                const serviceArn = core.getInput("appRunnerServiceArn", {
-                    required: true,
-                });
-                const result = await (0, apprunner_1.waitForAppRunnerDeployment)({
-                    region,
-                    serviceArn,
-                    imageRef,
-                    cpu: core.getInput("appRunnerCpu") || "1 vCPU",
-                    memory: core.getInput("appRunnerMemory") || "2 GB",
-                    intervalMs: 60000,
-                });
-                if (result === "FAILED" || result === "UNKNOWN") {
-                    throw new Error(`AppRunner deployment status: ${result}`);
-                }
-            }
-            else {
-                throw new Error(`Unknown target: ${target}`);
             }
         }
-        else if (stage === "deploy" && !imageRef) {
-            throw new Error("Image reference not found. Cannot deploy without building or finding an existing image.");
+        else if (target === "apprunner") {
+            const serviceArn = core.getInput("appRunnerServiceArn", {
+                required: true,
+            });
+            const result = await (0, apprunner_1.waitForAppRunnerDeployment)({
+                region,
+                serviceArn,
+                maxAttempts: 6,
+                intervalMs: 60000,
+            });
+            if (result === "FAILED" || result === "UNKNOWN") {
+                throw new Error(`AppRunner deployment status: ${result}`);
+            }
         }
-        // Stage: notify (success notification)
-        if ((stage === "all" || stage === "notify") && slackChannelId && slackToken && !skipSlackNotify) {
-            core.info(`📣 Sending success notification...`);
-            await (0, slackNotifier_1.slackPost)(slackToken, slackChannelId, (0, slackNotifier_1.finishedPayload)(environmentName, target, "success", imageRef || "<n/a>", branch, repo, actor));
+        else {
+            throw new Error(`Unknown target: ${target}`);
+        }
+        if (slackChannelId && slackToken && !skipSlackNotify) {
+            await (0, slackNotifier_1.slackPost)(slackToken, slackChannelId, (0, slackNotifier_1.finishedPayload)(environmentName, target, "success", imageRef, branch, repo, actor));
         }
     }
     catch (err) {
         core.setFailed(err?.message || String(err));
-        // Stage: notify (failure notification)
-        if ((stage === "all" || stage === "notify") && slackChannelId && slackToken && !skipSlackNotify) {
-            core.info(`📣 Sending failure notification...`);
+        if (slackChannelId && slackToken && !skipSlackNotify) {
             await (0, slackNotifier_1.slackPost)(slackToken, slackChannelId, (0, slackNotifier_1.finishedPayload)(environmentName, target, "failure", "<n/a>", branch, repo, actor));
         }
     }
@@ -63964,14 +63924,12 @@ async function slackPost(token, channelId, payload) {
         core.warning(`Slack error: ${JSON.stringify(json)}`);
     }
 }
-function startedPayload(envName, target, runUrl, branch, repo, actor, gifUrl) {
-    const defaultGifUrl = "https://media.giphy.com/media/l3q2IYN87QjIg51QI/giphy.gif"; // Loading GIF
+function startedPayload(envName, target, runUrl, branch, repo, actor, _gifUrl) {
     return {
         text: `:rocket: Deployment started (In Progress)`,
         attachments: [
             {
                 color: "dbab09",
-                image_url: gifUrl || defaultGifUrl,
                 fields: [
                     {
                         title: "⏳ Status",
@@ -64014,22 +63972,16 @@ function startedPayload(envName, target, runUrl, branch, repo, actor, gifUrl) {
         ],
     };
 }
-function finishedPayload(envName, target, status, imageRef, branch, repo, actor, customGifs) {
+function finishedPayload(envName, target, status, imageRef, branch, repo, actor, _customGifs) {
     const ok = status === "success";
     const statusText = ok ? "Completed" : "Failed";
     const emoji = ok ? ":white_check_mark:" : ":x:";
     const statusEmoji = ok ? "✅" : "❌";
-    const defaultSuccessGif = "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNGE0angyamJzNzhsNTMwbzdrMTg4azNwbGh2azN0MTZkcjl3a2RvdCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/umYMU8G2ixG5mJBDo5/giphy.gif";
-    const defaultFailureGif = "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHp3cGxieGxnZTB6ZGdlYWJpYmVuNWJ5d2loeGJpeXEyZnlzY25pciZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/5xaOcLyjXRo4TcX1SwE/giphy.gif";
-    const gifUrl = ok
-        ? (customGifs?.success || defaultSuccessGif)
-        : (customGifs?.failure || defaultFailureGif);
     return {
         text: `${emoji} Deployment finished (${statusText})`,
         attachments: [
             {
                 color: ok ? "28a745" : "ff0000",
-                image_url: gifUrl,
                 fields: [
                     {
                         title: `${statusEmoji} Status`,
