@@ -18,6 +18,7 @@ async function run() {
   const ecrRepository = core.getInput("ecrRepository", { required: true });
   const imageTag = core.getInput("imageTag") || "staging";
 
+  // Docker image
   const buildContext = core.getInput("buildContext") || ".";
   const dockerfile = core.getInput("dockerfile") || "Dockerfile";
   const buildTarget = core.getInput("buildTarget") || "";
@@ -26,13 +27,25 @@ async function run() {
   const extraImageTags = splitLines(core.getInput("extraImageTags"));
   const extraLabels = splitLines(core.getInput("extraLabels"));
 
+  // ECS
   const ecsCluster = core.getInput("ecsCluster");
+  
+  // 1. Web service
   const ecsServiceWeb = core.getInput("ecsServiceWeb");
-  const ecsServiceWorker = core.getInput("ecsServiceWorker");
   const taskDefWebPath = core.getInput("taskDefWebPath");
+  const containerWebName = core.getInput("containerWebName") || "farweb";
+  
+  // 2. Worker service
+  const ecsServiceWorker = core.getInput("ecsServiceWorker");
   const taskDefWorkerPath = core.getInput("taskDefWorkerPath");
-  const containerWebName = core.getInput("containerWebName") || "web";
-  const containerWorkerName = core.getInput("containerWorkerName") || "sidekiq";
+  const containerWorkerName = core.getInput("containerWorkerName") || "farwork";
+
+  //  3. Admin service (Optional)
+  const ecsServiceAdmin = core.getInput("ecsServiceAdmin");
+  const taskDefAdminPath = core.getInput("taskDefAdminPath");
+  const containerAdminName = core.getInput("containerAdminName") || "farweb-admin";
+  
+  // Notifier
   const skipHealthCheck = core.getBooleanInput("skipHealthCheck") || false;
   const skipSlackNotify = core.getBooleanInput("skipSlackNotify") || false;
 
@@ -111,6 +124,7 @@ async function run() {
         imagePinned: imageRef,
         skipHealthCheck,
       });
+	  
       if (ecsServiceWorker && taskDefWorkerPath) {
         await deployEcs({
           region,
@@ -118,6 +132,18 @@ async function run() {
           service: ecsServiceWorker,
           containerName: containerWorkerName,
           taskDefPath: taskDefWorkerPath,
+          imagePinned: imageRef,
+          skipHealthCheck,
+        });
+      }
+
+	  if (ecsServiceAdmin && taskDefAdminPath) {
+        await deployEcs({
+          region,
+          cluster: ecsCluster,
+          service: ecsServiceAdmin,
+          containerName: containerAdminName,
+          taskDefPath: taskDefAdminPath,
           imagePinned: imageRef,
           skipHealthCheck,
         });
