@@ -18,7 +18,7 @@ No more separate AWS credential or ECR login steps needed! XFlows now handles ev
 
 ```yaml
 - name: Deploy to ECS
-  uses: nanocohub/xflows@v1.012
+  uses: nanocohub/xflows@v1.02
   with:
     target: ecs
     awsRegion: us-west-2
@@ -64,7 +64,7 @@ For CI/CD pipelines where you want faster execution and don't need the waiting a
 
 ```yaml
 - name: Deploy to ECS (Fast Mode)
-  uses: nanocohub/xflows@v1.012
+  uses: nanocohub/xflows@v1.02
   with:
     target: ecs
     awsRegion: us-west-2
@@ -85,7 +85,7 @@ You can pass build arguments and use enhanced caching:
 
 ```yaml
 - name: Deploy with build args and ECR caching
-  uses: nanocohub/xflows@v1.012
+  uses: nanocohub/xflows@v1.02
   with:
     target: ecs
     awsRegion: us-west-2
