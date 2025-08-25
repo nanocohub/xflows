@@ -60,30 +60,41 @@ export async function buildAndPush(opts: {
 	for (const a of opts.buildArgs) if (a.trim()) args.push("--build-arg", a);
 	for (const l of opts.labels) if (l.trim()) args.push("--label", l);
 
-	// Enhanced caching strategy
-	const cacheMode = opts.cacheMode || 'gha';
-	const cacheRegistry = opts.cacheRegistry;
-	const cacheTag = opts.cacheTag || 'cache';
+		// Enhanced caching strategy
+		const cacheMode = opts.cacheMode || 'gha';
+		const cacheRegistry = opts.cacheRegistry;
+		const cacheTag = opts.cacheTag || 'cache';
 
-	switch (cacheMode) {
-		case 'ecr':
-		case 'registry':
-			if (!cacheRegistry) {
-				core.warning('Cache registry not provided, falling back to GHA cache');
+		switch (cacheMode) {
+			case 'ecr':
+				if (!cacheRegistry) {
+					core.warning('ECR cache registry not provided, falling back to GHA cache');
+					args.push("--cache-from", "type=gha", "--cache-to", "type=gha,mode=max");
+				} else {
+					// Ensure proper ECR format
+					const cacheImage = `${cacheRegistry}:${cacheTag}`;
+					args.push("--cache-from", `type=registry,ref=${cacheImage}`);
+					args.push("--cache-to", `type=registry,ref=${cacheImage},mode=max`);
+					core.info(`Using ECR-based caching: ${cacheImage}`);
+				}
+				break;
+			case 'registry':
+				if (!cacheRegistry) {
+					core.warning('Registry cache not provided, falling back to GHA cache');
+					args.push("--cache-from", "type=gha", "--cache-to", "type=gha,mode=max");
+				} else {
+					const cacheImage = `${cacheRegistry}:${cacheTag}`;
+					args.push("--cache-from", `type=registry,ref=${cacheImage}`);
+					args.push("--cache-to", `type=registry,ref=${cacheImage},mode=max`);
+					core.info(`Using registry-based caching: ${cacheImage}`);
+				}
+				break;
+			case 'gha':
+			default:
 				args.push("--cache-from", "type=gha", "--cache-to", "type=gha,mode=max");
-			} else {
-				const cacheImage = `${cacheRegistry}:${cacheTag}`;
-				args.push("--cache-from", `type=registry,ref=${cacheImage}`);
-				args.push("--cache-to", `type=registry,ref=${cacheImage},mode=max`);
-				core.info(`Using ECR-based caching: ${cacheImage}`);
-			}
-			break;
-		case 'gha':
-		default:
-			args.push("--cache-from", "type=gha", "--cache-to", "type=gha,mode=max");
-			core.info('Using GitHub Actions cache');
-			break;
-	}
+				core.info('Using GitHub Actions cache');
+				break;
+		}
 
 	core.info(`Running: docker ${args.join(" ")}`);
 	await execa("docker", args, { stdio: "inherit" });

@@ -114,6 +114,13 @@ async function run() {
 			...extraImageTags.map((t) => `${registry}/${ecrRepository}:${t}`),
 		];
 
+		// Construct proper cache registry for ECR
+		let cacheRegistryUrl = undefined;
+		if (cacheMode === 'ecr') {
+			cacheRegistryUrl = `${registry}/${ecrRepository}-cache`;
+			core.info(`Using ECR cache: ${cacheRegistryUrl}:${cacheTag}`);
+		}
+
 		await buildAndPush({
 			context: buildContext,
 			dockerfile,
@@ -128,8 +135,8 @@ async function run() {
 				...extraLabels,
 			],
 			cacheMode: cacheMode,
-			cacheRegistry: cacheMode === 'ecr' ? registry : undefined,
-			cacheTag
+			cacheRegistry: cacheRegistryUrl,
+			cacheTag,
 		});
 
 		const digest = await getDigestForTag(baseTagFriendly);

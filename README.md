@@ -257,6 +257,27 @@ Choose your caching strategy:
 - Faster layer reuse for multi-stage builds
 - Reduced build times on subsequent runs
 
+**ECR Caching Setup:**
+```yaml
+# Create a separate cache repository in ECR
+# Example: my-app-cache (separate from your main app repository)
+
+- name: Deploy with ECR caching
+  uses: nanocohub/xflows@v1.02
+  with:
+    target: ecs
+    awsRegion: us-west-2
+    ecrRepository: my-app
+    cacheMode: ecr
+    cacheTag: build-cache
+    # Cache will be stored at: <account>.dkr.ecr.<region>.amazonaws.com/my-app-cache:build-cache
+```
+
+**Troubleshooting ECR Cache:**
+- Ensure ECR repository exists for caching (e.g., `my-app-cache`)
+- Check AWS credentials have ECR push/pull permissions
+- Use `cacheMode: gha` as fallback if ECR issues persist
+
 ### Security Scanning 🔒
 **Non-blocking** security vulnerability scanning with Trivy:
 - **Automatic scanning** after image build
