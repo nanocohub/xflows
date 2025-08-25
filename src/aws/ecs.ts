@@ -8,7 +8,7 @@ import {
   DescribeServicesCommand,
 } from "@aws-sdk/client-ecs";
 
-type TD = any; // keep flexible
+type TD = any;
 
 function updateContainerImage(td: TD, containerName: string, newImage: string) {
   const def = { ...td };
@@ -26,8 +26,8 @@ export async function deployEcs(params: {
   service: string;
   containerName: string;
   taskDefPath: string;
-  imagePinned: string; // registry/repo@sha256:...
-  skipHealthCheck?: boolean; // Option to skip waiting for service stability
+  imagePinned: string;
+  skipHealthCheck?: boolean;
 }) {
   const ecs = new ECSClient({ region: params.region });
 
@@ -51,7 +51,6 @@ export async function deployEcs(params: {
     }),
   );
 
-  // Skip health check if requested
   if (params.skipHealthCheck) {
     core.info(`Skipping health check for ECS service ${params.cluster}/${params.service} to save time`);
     core.info(`Task definition update triggered successfully, but deployment stability is not being verified`);
@@ -59,7 +58,6 @@ export async function deployEcs(params: {
     return;
   }
 
-  // Wait for stable (enhanced monitoring with early failure detection)
   const maxAttempts = 60;
   const pollingIntervalMs = 5000;
   const serviceDetails = `${params.cluster}/${params.service}`;
@@ -83,28 +81,23 @@ export async function deployEcs(params: {
     const primary = svc?.deployments?.find((x) => x.status === "PRIMARY");
     const pending = svc?.deployments?.some((x) => x.rolloutState === "IN_PROGRESS");
     
-    // Log detailed information about the deployment status
     core.info(`Deployment status [${i+1}/${maxAttempts}]: ${primary?.rolloutState || "UNKNOWN"}`);
     
     if (svc.events && svc.events.length > 0) {
-      // Log the latest event
       core.info(`Latest event: ${svc.events[0].message}`);
     }
     
-    // Success case
     if (primary && !pending && primary.rolloutState === "COMPLETED") {
       core.info(`✅ ECS service ${serviceDetails} is stable`);
       return;
     }
     
-    // Failure detection
     if (primary && primary.rolloutState === "FAILED") {
       core.error(`❌ ECS deployment for ${serviceDetails} has failed`);
       core.error(`Reason: ${primary.rolloutStateReason || "Unknown reason"}`);
       throw new Error(`ECS deployment failed: ${primary.rolloutStateReason || "Unknown error"}`);
     }
     
-    // Check for task failures
     if (svc.events && svc.events.length > 0) {
       const recentEvents = svc.events.slice(0, 5);
       const failureIndicators = recentEvents.some(event => {
@@ -125,7 +118,6 @@ export async function deployEcs(params: {
       }
     }
     
-    // Show deployment progress percentages if available
     if (primary && primary.desiredCount && primary.desiredCount > 0) {
       const runningCount = primary.runningCount || 0;
       const desiredCount = primary.desiredCount;
