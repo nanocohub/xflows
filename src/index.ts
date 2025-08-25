@@ -33,9 +33,9 @@ async function run() {
 	const extraImageTags = splitLines(core.getInput("extraImageTags"));
 	const extraLabels = splitLines(core.getInput("extraLabels"));
 
-	// Caching
-	const cacheMode = core.getInput("cacheMode") || "gha";
-	const cacheTag = core.getInput("cacheTag") || "cache";
+		// Caching - use imageTag for cache to avoid duplication
+		const cacheMode = core.getInput("cacheMode") || "gha";
+		const cacheTag = core.getInput("cacheTag") || imageTag;  // Use same tag as image
 
 	// Security
 	const skipSecurityScan = core.getBooleanInput("skipSecurityScan") || false;
@@ -114,11 +114,19 @@ async function run() {
 			...extraImageTags.map((t) => `${registry}/${ecrRepository}:${t}`),
 		];
 
-		// Construct proper cache registry for ECR
+		// Use the same ECR repository and imageTag for cache (no duplication)
 		let cacheRegistryUrl = undefined;
-		if (cacheMode === 'ecr') {
-			cacheRegistryUrl = `${registry}/${ecrRepository}-cache`;
-			core.info(`Using ECR cache: ${cacheRegistryUrl}:${cacheTag}`);
+		let cacheTagToUse = undefined;
+		
+		if (cacheMode === 'ecr' || cacheMode === 'hybrid') {
+			// Use the same ECR repository and imageTag for cache
+			cacheRegistryUrl = `${registry}/${ecrRepository}`;
+			cacheTagToUse = imageTag;  // Use the same tag as main image
+			core.info(`Using ECR cache: ${cacheRegistryUrl}:${cacheTagToUse}`);
+		} else if (cacheMode === 'registry') {
+			// Use provided cacheTag for generic registry
+			cacheRegistryUrl = `${registry}/${ecrRepository}`;
+			cacheTagToUse = cacheTag;
 		}
 
 		await buildAndPush({
@@ -136,7 +144,7 @@ async function run() {
 			],
 			cacheMode: cacheMode,
 			cacheRegistry: cacheRegistryUrl,
-			cacheTag,
+			cacheTag: cacheTagToUse,
 		});
 
 		const digest = await getDigestForTag(baseTagFriendly);

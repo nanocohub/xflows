@@ -60,18 +60,32 @@ export async function buildAndPush(opts: {
 	for (const a of opts.buildArgs) if (a.trim()) args.push("--build-arg", a);
 	for (const l of opts.labels) if (l.trim()) args.push("--label", l);
 
-		// Enhanced caching strategy
+		// Enhanced caching strategy with hybrid support and no duplication
 		const cacheMode = opts.cacheMode || 'gha';
 		const cacheRegistry = opts.cacheRegistry;
-		const cacheTag = opts.cacheTag || 'cache';
+		const cacheTag = opts.cacheTag || 'cache';  // Will be overridden by imageTag in index.ts
 
 		switch (cacheMode) {
+			case 'hybrid':
+				// Use both GHA and ECR cache for maximum performance
+				if (!cacheRegistry) {
+					core.warning('Hybrid cache requires cacheRegistry, falling back to GHA');
+					args.push("--cache-from", "type=gha", "--cache-to", "type=gha,mode=max");
+				} else {
+					const cacheImage = `${cacheRegistry}:${cacheTag}`;
+					args.push("--cache-from", "type=gha");
+					args.push("--cache-from", `type=registry,ref=${cacheImage}`);
+					args.push("--cache-to", "type=gha,mode=max");
+					args.push("--cache-to", `type=registry,ref=${cacheImage},mode=max`);
+					core.info(`Using hybrid caching: GHA + ${cacheImage}`);
+				}
+				break;
 			case 'ecr':
 				if (!cacheRegistry) {
 					core.warning('ECR cache registry not provided, falling back to GHA cache');
 					args.push("--cache-from", "type=gha", "--cache-to", "type=gha,mode=max");
 				} else {
-					// Ensure proper ECR format
+					// Ensure proper ECR format without protocol
 					const cacheImage = `${cacheRegistry}:${cacheTag}`;
 					args.push("--cache-from", `type=registry,ref=${cacheImage}`);
 					args.push("--cache-to", `type=registry,ref=${cacheImage},mode=max`);

@@ -33,7 +33,7 @@ inputs:
     {
       required: false,
       default: "gha",
-      description: "cache mode: gha (GitHub Actions) | ecr (ECR-based) | registry (generic registry)"
+      description: "cache mode: gha | ecr | registry | hybrid (GHA + ECR)"
     }
   cacheTag:
     { required: false, default: "cache", description: "cache image tag for ECR/registry caching" }
