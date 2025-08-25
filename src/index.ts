@@ -41,9 +41,9 @@ async function run() {
   const containerWorkerName = core.getInput("containerWorkerName") || "sidekiq";
 
   //  3. Admin service (Optional)
-  const ecsServiceAdmin = core.getInput("ecsServiceAdmin");
-  const taskDefAdminPath = core.getInput("taskDefAdminPath");
-  const containerAdminName = core.getInput("containerAdminName") || "web";
+	const ecsServiceAdmin = core.getInput("ecsServiceAdmin");
+	const taskDefAdminPath = core.getInput("taskDefAdminPath");
+	const containerAdminName = core.getInput("containerAdminName") || "web";
   
   // Notifier
   const skipHealthCheck = core.getBooleanInput("skipHealthCheck") || false;
