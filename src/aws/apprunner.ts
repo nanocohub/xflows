@@ -36,8 +36,15 @@ export async function waitForAppRunnerDeployment(params: {
   serviceArn: string;
   maxAttempts?: number; // default 6
   intervalMs?: number; // default 60_000
+  skipHealthCheck?: boolean; // default false
 }): Promise<DeploymentStatus> {
-  const { region, serviceArn, maxAttempts = 6, intervalMs = 60_000 } = params;
+  const { region, serviceArn, maxAttempts = 6, intervalMs = 60_000, skipHealthCheck = false } = params;
+  
+  if (skipHealthCheck) {
+    core.info("(AppRunner) Skipping health check as requested");
+    return "SUCCEEDED";
+  }
+
   const client = new AppRunnerClient({ region });
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {

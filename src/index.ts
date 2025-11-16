@@ -214,6 +214,7 @@ async function run() {
 				serviceArn,
 				maxAttempts: 6,
 				intervalMs: 60_000,
+				skipHealthCheck,
 			});
 
 			if (result === "FAILED" || result === "UNKNOWN") {
