@@ -44,11 +44,10 @@ export function startedPayload(
   const december = isDecember();
   const newYear = isNewYearHoliday();
   
-  let text, color, branchEmoji, actorEmoji, repoEmoji, envEmoji, targetEmoji, footerText;
+  let headerText, branchEmoji, actorEmoji, repoEmoji, envEmoji, targetEmoji, footerText;
   
   if (december) {
-    text = `:santa: Deployment started (In Progress) :christmas_tree:`;
-    color = "c41e3a";
+    headerText = `:santa: Deployment started (In Progress) :christmas_tree:`;
     branchEmoji = "🎄";
     actorEmoji = "🤶";
     repoEmoji = "🎁";
@@ -56,8 +55,7 @@ export function startedPayload(
     targetEmoji = "⛄";
     footerText = `🎅 Deployment started 🎅`;
   } else if (newYear) {
-    text = `:confetti_ball: Deployment started (In Progress) :sparkles:`;
-    color = "0066cc";
+    headerText = `:confetti_ball: Deployment started (In Progress) :sparkles:`;
     branchEmoji = "🎊";
     actorEmoji = "🥳";
     repoEmoji = "🎈";
@@ -65,8 +63,7 @@ export function startedPayload(
     targetEmoji = "🎯";
     footerText = `🎉 Deployment started 🎉`;
   } else {
-    text = `:rocket: Deployment started (In Progress)`;
-    color = "dbab09";
+    headerText = `:rocket: Deployment started (In Progress)`;
     branchEmoji = "🧠";
     actorEmoji = "👤";
     repoEmoji = "📚";
@@ -75,51 +72,27 @@ export function startedPayload(
     footerText = `Deployment started`;
   }
   
+  const message = `${headerText}
+
+⏳ Status
+In Progress
+${branchEmoji} Branch
+${branch}
+${actorEmoji} Actor
+${actor}
+${repoEmoji} Repository
+${repo}
+${envEmoji} Environment
+${envName}
+${targetEmoji} Target
+${target}
+🔗 Run URL
+${runUrl}
+
+${footerText}`;
+
   return {
-    text: text,
-    attachments: [
-      {
-        color: color,
-        fields: [
-          { 
-            title: "⏳ Status", 
-            value: "In Progress",
-            short: true 
-          },
-          { 
-            title: `${branchEmoji} Branch`, 
-            value: branch, 
-            short: true 
-          },
-          { 
-            title: `${actorEmoji} Actor`, 
-            value: actor, 
-            short: true 
-          },
-          { 
-            title: `${repoEmoji} Repository`, 
-            value: repo, 
-            short: true 
-          },
-          { 
-            title: `${envEmoji} Environment`, 
-            value: envName, 
-            short: true 
-          },
-          { 
-            title: `${targetEmoji} Target`, 
-            value: target, 
-            short: true 
-          },
-          { 
-            title: "🔗 Run URL", 
-            value: runUrl, 
-            short: false 
-          }
-        ],
-        footer: footerText,
-      },
-    ],
+    text: message,
   };
 }
 
@@ -140,11 +113,10 @@ export function finishedPayload(
   const december = isDecember();
   const newYear = isNewYearHoliday();
   
-  let text, color, branchEmoji, actorEmoji, repoEmoji, envEmoji, targetEmoji, imageEmoji, footerText;
+  let headerText, branchEmoji, actorEmoji, repoEmoji, envEmoji, targetEmoji, imageEmoji, footerText;
   
   if (december) {
-    text = ok ? `:santa: Deployment finished (${statusText}) :christmas_tree:` : `:disappointed_face: Deployment finished (${statusText}) :christmas_tree:`;
-    color = ok ? "0d7c3d" : "8b0000";
+    headerText = ok ? `:santa: Deployment finished (${statusText}) :christmas_tree:` : `:disappointed_face: Deployment finished (${statusText}) :christmas_tree:`;
     branchEmoji = "🎄";
     actorEmoji = "🤶";
     repoEmoji = "🎁";
@@ -153,8 +125,7 @@ export function finishedPayload(
     imageEmoji = "🎀";
     footerText = `🎄 Deployment finished 🎄`;
   } else if (newYear) {
-    text = ok ? `:tada: Deployment finished (${statusText}) :confetti_ball:` : `:disappointed_face: Deployment finished (${statusText}) :sparkles:`;
-    color = ok ? "0052a3" : "cc0000";
+    headerText = ok ? `:tada: Deployment finished (${statusText}) :confetti_ball:` : `:disappointed_face: Deployment finished (${statusText}) :sparkles:`;
     branchEmoji = "🎊";
     actorEmoji = "🥳";
     repoEmoji = "🎈";
@@ -163,8 +134,7 @@ export function finishedPayload(
     imageEmoji = "🎁";
     footerText = `🎉 Deployment finished 🎉`;
   } else {
-    text = `${emoji} Deployment finished (${statusText})`;
-    color = ok ? "28a745" : "ff0000";
+    headerText = `${emoji} Deployment finished (${statusText})`;
     branchEmoji = "🧠";
     actorEmoji = "👤";
     repoEmoji = "📚";
@@ -174,50 +144,26 @@ export function finishedPayload(
     footerText = `Deployment finished`;
   }
   
+  const message = `${headerText}
+
+${statusEmoji} Status
+${statusText}
+${branchEmoji} Branch
+${branch}
+${actorEmoji} Actor
+${actor}
+${repoEmoji} Repository
+${repo}
+${envEmoji} Environment
+${envName}
+${targetEmoji} Target
+${target}
+${imageEmoji} Image
+${imageRef}
+
+${footerText}`;
+
   return {
-    text: text,
-    attachments: [
-      {
-        color: color,
-        fields: [
-          { 
-            title: `${statusEmoji} Status`, 
-            value: statusText, 
-            short: true 
-          },
-          { 
-            title: `${branchEmoji} Branch`, 
-            value: branch, 
-            short: true 
-          },
-          { 
-            title: `${actorEmoji} Actor`, 
-            value: actor, 
-            short: true 
-          },
-          { 
-            title: `${repoEmoji} Repository`, 
-            value: repo, 
-            short: true 
-          },
-          { 
-            title: `${envEmoji} Environment`, 
-            value: envName, 
-            short: true 
-          },
-          { 
-            title: `${targetEmoji} Target`, 
-            value: target, 
-            short: true 
-          },
-          {
-            title: `${imageEmoji} Image`, 
-            value: imageRef, 
-            short: false 
-          }
-        ],
-        footer: footerText,
-      },
-    ],
+    text: message,
   };
 }
