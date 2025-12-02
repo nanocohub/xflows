@@ -35,7 +35,6 @@ async function run() {
 
 		// Caching - use imageTag for cache to avoid duplication
 		const cacheMode = core.getInput("cacheMode") || "gha";
-		const cacheTag = core.getInput("cacheTag") || imageTag;  // Use same tag as image
 
 	// Security
 	const skipSecurityScan = core.getBooleanInput("skipSecurityScan") || false;

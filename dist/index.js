@@ -67539,7 +67539,11 @@ function latestStartDeploymentStatus(list) {
  * Waits until the latest START_DEPLOYMENT operation becomes SUCCEEDED or FAILED.
  */
 async function waitForAppRunnerDeployment(params) {
-    const { region, serviceArn, maxAttempts = 6, intervalMs = 60000 } = params;
+    const { region, serviceArn, maxAttempts = 6, intervalMs = 60000, skipHealthCheck = false } = params;
+    if (skipHealthCheck) {
+        core.info("(AppRunner) Skipping health check as requested");
+        return "SUCCEEDED";
+    }
     const client = new client_apprunner_1.AppRunnerClient({ region });
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         core.info(`(AppRunner) Checking deployment status (attempt ${attempt}/${maxAttempts})`);
@@ -67795,22 +67799,50 @@ async function buildAndPush(opts) {
     for (const l of opts.labels)
         if (l.trim())
             args.push("--label", l);
-    // Enhanced caching strategy
+    // Enhanced caching strategy with proper ECR format
     const cacheMode = opts.cacheMode || 'gha';
     const cacheRegistry = opts.cacheRegistry;
     const cacheTag = opts.cacheTag || 'cache';
     switch (cacheMode) {
-        case 'ecr':
-        case 'registry':
+        case 'hybrid':
+            // Use both GHA and ECR cache for maximum performance
             if (!cacheRegistry) {
-                core.warning('Cache registry not provided, falling back to GHA cache');
+                core.warning('Hybrid cache requires cacheRegistry, falling back to GHA');
                 args.push("--cache-from", "type=gha", "--cache-to", "type=gha,mode=max");
             }
             else {
-                const cacheImage = `${cacheRegistry}:${cacheTag}`;
+                // Ensure proper ECR format - no protocol, correct domain
+                const cacheImage = cacheRegistry.startsWith('http') ? cacheRegistry : `${cacheRegistry}:${cacheTag}`;
+                args.push("--cache-from", "type=gha");
+                args.push("--cache-from", `type=registry,ref=${cacheImage}`);
+                args.push("--cache-to", "type=gha,mode=max");
+                args.push("--cache-to", `type=registry,ref=${cacheImage},mode=max`);
+                core.info(`Using hybrid caching: GHA + ${cacheImage}`);
+            }
+            break;
+        case 'ecr':
+            if (!cacheRegistry) {
+                core.warning('ECR cache registry not provided, falling back to GHA cache');
+                args.push("--cache-from", "type=gha", "--cache-to", "type=gha,mode=max");
+            }
+            else {
+                // Ensure proper ECR format - no protocol, correct domain
+                const cacheImage = cacheRegistry.startsWith('http') ? cacheRegistry : `${cacheRegistry}:${cacheTag}`;
                 args.push("--cache-from", `type=registry,ref=${cacheImage}`);
                 args.push("--cache-to", `type=registry,ref=${cacheImage},mode=max`);
                 core.info(`Using ECR-based caching: ${cacheImage}`);
+            }
+            break;
+        case 'registry':
+            if (!cacheRegistry) {
+                core.warning('Registry cache not provided, falling back to GHA cache');
+                args.push("--cache-from", "type=gha", "--cache-to", "type=gha,mode=max");
+            }
+            else {
+                const cacheImage = cacheRegistry.startsWith('http') ? cacheRegistry : `${cacheRegistry}:${cacheTag}`;
+                args.push("--cache-from", `type=registry,ref=${cacheImage}`);
+                args.push("--cache-to", `type=registry,ref=${cacheImage},mode=max`);
+                core.info(`Using registry-based caching: ${cacheImage}`);
             }
             break;
         case 'gha':
@@ -67909,9 +67941,8 @@ async function run() {
     const buildArgs = splitLines(core.getInput("buildArgs"));
     const extraImageTags = splitLines(core.getInput("extraImageTags"));
     const extraLabels = splitLines(core.getInput("extraLabels"));
-    // Caching
+    // Caching - use imageTag for cache to avoid duplication
     const cacheMode = core.getInput("cacheMode") || "gha";
-    const cacheTag = core.getInput("cacheTag") || "cache";
     // Security
     const skipSecurityScan = core.getBooleanInput("skipSecurityScan") || false;
     const securitySeverity = core.getInput("securitySeverity") || "HIGH,CRITICAL";
@@ -67969,6 +68000,20 @@ async function run() {
             baseTagFriendly,
             ...extraImageTags.map((t) => `${registry}/${ecrRepository}:${t}`),
         ];
+        // Use the same ECR repository and imageTag for cache (no duplication)
+        let cacheRegistryUrl = undefined;
+        if (cacheMode === 'ecr' || cacheMode === 'hybrid') {
+            // Use the same ECR repository for both image and cache
+            cacheRegistryUrl = `${registry}/${ecrRepository}`;
+            // Validate ECR format to prevent 401 errors
+            if (!cacheRegistryUrl.includes('.dkr.ecr.') || !cacheRegistryUrl.includes('.amazonaws.com')) {
+                core.warning('Invalid ECR registry format, falling back to GHA cache');
+                cacheRegistryUrl = undefined;
+            }
+            else {
+                core.info(`Using ECR cache: ${cacheRegistryUrl}:${imageTag}`);
+            }
+        }
         await (0, container_1.buildAndPush)({
             context: buildContext,
             dockerfile,
@@ -67983,8 +68028,8 @@ async function run() {
                 ...extraLabels,
             ],
             cacheMode: cacheMode,
-            cacheRegistry: cacheMode === 'ecr' ? registry : undefined,
-            cacheTag
+            cacheRegistry: cacheRegistryUrl,
+            cacheTag: imageTag, // Use same tag as image
         });
         const digest = await (0, container_1.getDigestForTag)(baseTagFriendly);
         const imageRef = `${registry}/${ecrRepository}@${digest}`;
@@ -68043,6 +68088,7 @@ async function run() {
                 serviceArn,
                 maxAttempts: 6,
                 intervalMs: 60000,
+                skipHealthCheck,
             });
             if (result === "FAILED" || result === "UNKNOWN") {
                 throw new Error(`AppRunner deployment status: ${result}`);
@@ -68273,6 +68319,13 @@ exports.startedPayload = startedPayload;
 exports.finishedPayload = finishedPayload;
 const core = __importStar(__nccwpck_require__(9999));
 const node_fetch_1 = __importDefault(__nccwpck_require__(2476));
+function isDecember() {
+    return new Date().getMonth() === 11;
+}
+function isNewYearHoliday() {
+    const month = new Date().getMonth();
+    return month === 0 || month === 1; // January or February (Lunar New Year)
+}
 async function slackPost(token, channelId, payload) {
     if (!token || !channelId)
         return;
@@ -68290,51 +68343,56 @@ async function slackPost(token, channelId, payload) {
     }
 }
 function startedPayload(envName, target, runUrl, branch, repo, actor, _gifUrl) {
+    const december = isDecember();
+    const newYear = isNewYearHoliday();
+    let headerText, branchEmoji, actorEmoji, repoEmoji, envEmoji, targetEmoji, footerText;
+    if (december) {
+        headerText = `:santa: Deployment started (In Progress) :christmas_tree:`;
+        branchEmoji = "🎄";
+        actorEmoji = "🤶";
+        repoEmoji = "🎁";
+        envEmoji = "❄️";
+        targetEmoji = "⛄";
+        footerText = `🎅 Deployment started 🎅`;
+    }
+    else if (newYear) {
+        headerText = `:confetti_ball: Deployment started (In Progress) :sparkles:`;
+        branchEmoji = "🎊";
+        actorEmoji = "🥳";
+        repoEmoji = "🎈";
+        envEmoji = "✨";
+        targetEmoji = "🎯";
+        footerText = `🎉 Deployment started 🎉`;
+    }
+    else {
+        headerText = `:rocket: Deployment started (In Progress)`;
+        branchEmoji = "🧠";
+        actorEmoji = "👤";
+        repoEmoji = "📚";
+        envEmoji = "🌍";
+        targetEmoji = "🎯";
+        footerText = `Deployment started`;
+    }
+    const message = `${headerText}
+
+⏳ Status
+In Progress
+${branchEmoji} Branch
+${branch}
+${actorEmoji} Actor
+${actor}
+${repoEmoji} Repository
+${repo}
+${envEmoji} Environment
+${envName}
+${targetEmoji} Target
+${target}
+🔗 Run URL
+${runUrl}
+
+${footerText}`;
     return {
-        text: `:rocket: Deployment started (In Progress)`,
-        attachments: [
-            {
-                color: "dbab09",
-                fields: [
-                    {
-                        title: "⏳ Status",
-                        value: "In Progress",
-                        short: true
-                    },
-                    {
-                        title: "🧠 Branch",
-                        value: branch,
-                        short: true
-                    },
-                    {
-                        title: "👤 Actor",
-                        value: actor,
-                        short: true
-                    },
-                    {
-                        title: "📚 Repository",
-                        value: repo,
-                        short: true
-                    },
-                    {
-                        title: "🌍 Environment",
-                        value: envName,
-                        short: true
-                    },
-                    {
-                        title: "🎯 Target",
-                        value: target,
-                        short: true
-                    },
-                    {
-                        title: "🔗 Run URL",
-                        value: runUrl,
-                        short: false
-                    }
-                ],
-                footer: `Deployment started`,
-            },
-        ],
+        text: message,
     };
 }
 function finishedPayload(envName, target, status, imageRef, branch, repo, actor, _customGifs) {
@@ -68342,51 +68400,59 @@ function finishedPayload(envName, target, status, imageRef, branch, repo, actor,
     const statusText = ok ? "Completed" : "Failed";
     const emoji = ok ? ":white_check_mark:" : ":x:";
     const statusEmoji = ok ? "✅" : "❌";
+    const december = isDecember();
+    const newYear = isNewYearHoliday();
+    let headerText, branchEmoji, actorEmoji, repoEmoji, envEmoji, targetEmoji, imageEmoji, footerText;
+    if (december) {
+        headerText = ok ? `:santa: Deployment finished (${statusText}) :christmas_tree:` : `:disappointed_face: Deployment finished (${statusText}) :christmas_tree:`;
+        branchEmoji = "🎄";
+        actorEmoji = "🤶";
+        repoEmoji = "🎁";
+        envEmoji = "❄️";
+        targetEmoji = "⛄";
+        imageEmoji = "🎀";
+        footerText = `🎄 Deployment finished 🎄`;
+    }
+    else if (newYear) {
+        headerText = ok ? `:tada: Deployment finished (${statusText}) :confetti_ball:` : `:disappointed_face: Deployment finished (${statusText}) :sparkles:`;
+        branchEmoji = "🎊";
+        actorEmoji = "🥳";
+        repoEmoji = "🎈";
+        envEmoji = "✨";
+        targetEmoji = "🎯";
+        imageEmoji = "🎁";
+        footerText = `🎉 Deployment finished 🎉`;
+    }
+    else {
+        headerText = `${emoji} Deployment finished (${statusText})`;
+        branchEmoji = "🧠";
+        actorEmoji = "👤";
+        repoEmoji = "📚";
+        envEmoji = "🌍";
+        targetEmoji = "🎯";
+        imageEmoji = "🖼️";
+        footerText = `Deployment finished`;
+    }
+    const message = `${headerText}
+
+${statusEmoji} Status
+${statusText}
+${branchEmoji} Branch
+${branch}
+${actorEmoji} Actor
+${actor}
+${repoEmoji} Repository
+${repo}
+${envEmoji} Environment
+${envName}
+${targetEmoji} Target
+${target}
+${imageEmoji} Image
+${imageRef}
+
+${footerText}`;
     return {
-        text: `${emoji} Deployment finished (${statusText})`,
-        attachments: [
-            {
-                color: ok ? "28a745" : "ff0000",
-                fields: [
-                    {
-                        title: `${statusEmoji} Status`,
-                        value: statusText,
-                        short: true
-                    },
-                    {
-                        title: "🧠 Branch",
-                        value: branch,
-                        short: true
-                    },
-                    {
-                        title: "👤 Actor",
-                        value: actor,
-                        short: true
-                    },
-                    {
-                        title: "📚 Repository",
-                        value: repo,
-                        short: true
-                    },
-                    {
-                        title: "🌍 Environment",
-                        value: envName,
-                        short: true
-                    },
-                    {
-                        title: "🎯 Target",
-                        value: target,
-                        short: true
-                    },
-                    {
-                        title: "🖼️ Image",
-                        value: imageRef,
-                        short: false
-                    }
-                ],
-                footer: `Deployment finished`,
-            },
-        ],
+        text: message,
     };
 }
 
