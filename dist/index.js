@@ -68345,9 +68345,10 @@ async function slackPost(token, channelId, payload) {
 function startedPayload(envName, target, runUrl, branch, repo, actor, _gifUrl) {
     const december = isDecember();
     const newYear = isNewYearHoliday();
-    let headerText, branchEmoji, actorEmoji, repoEmoji, envEmoji, targetEmoji, footerText;
+    let headerText, color, branchEmoji, actorEmoji, repoEmoji, envEmoji, targetEmoji, footerText;
     if (december) {
         headerText = `:santa: Deployment started (In Progress) :christmas_tree:`;
+        color = "c41e3a";
         branchEmoji = "🎄";
         actorEmoji = "🤶";
         repoEmoji = "🎁";
@@ -68357,6 +68358,7 @@ function startedPayload(envName, target, runUrl, branch, repo, actor, _gifUrl) {
     }
     else if (newYear) {
         headerText = `:confetti_ball: Deployment started (In Progress) :sparkles:`;
+        color = "0066cc";
         branchEmoji = "🎊";
         actorEmoji = "🥳";
         repoEmoji = "🎈";
@@ -68366,6 +68368,7 @@ function startedPayload(envName, target, runUrl, branch, repo, actor, _gifUrl) {
     }
     else {
         headerText = `:rocket: Deployment started (In Progress)`;
+        color = "dbab09";
         branchEmoji = "🧠";
         actorEmoji = "👤";
         repoEmoji = "📚";
@@ -68373,26 +68376,15 @@ function startedPayload(envName, target, runUrl, branch, repo, actor, _gifUrl) {
         targetEmoji = "🎯";
         footerText = `Deployment started`;
     }
-    const message = `${headerText}
-
-⏳ Status
-In Progress
-${branchEmoji} Branch
-${branch}
-${actorEmoji} Actor
-${actor}
-${repoEmoji} Repository
-${repo}
-${envEmoji} Environment
-${envName}
-${targetEmoji} Target
-${target}
-🔗 Run URL
-${runUrl}
-
-${footerText}`;
     return {
-        text: message,
+        text: headerText,
+        attachments: [
+            {
+                color: color,
+                text: `⏳ Status\nIn Progress\n\n${branchEmoji} Branch\n${branch}\n\n${actorEmoji} Actor\n${actor}\n\n${repoEmoji} Repository\n${repo}\n\n${envEmoji} Environment\n${envName}\n\n${targetEmoji} Target\n${target}\n\n🔗 Run URL\n${runUrl}`,
+                footer: footerText,
+            },
+        ],
     };
 }
 function finishedPayload(envName, target, status, imageRef, branch, repo, actor, _customGifs) {
@@ -68402,9 +68394,10 @@ function finishedPayload(envName, target, status, imageRef, branch, repo, actor,
     const statusEmoji = ok ? "✅" : "❌";
     const december = isDecember();
     const newYear = isNewYearHoliday();
-    let headerText, branchEmoji, actorEmoji, repoEmoji, envEmoji, targetEmoji, imageEmoji, footerText;
+    let headerText, color, branchEmoji, actorEmoji, repoEmoji, envEmoji, targetEmoji, imageEmoji, footerText;
     if (december) {
         headerText = ok ? `:santa: Deployment finished (${statusText}) :christmas_tree:` : `:disappointed_face: Deployment finished (${statusText}) :christmas_tree:`;
+        color = ok ? "0d7c3d" : "8b0000";
         branchEmoji = "🎄";
         actorEmoji = "🤶";
         repoEmoji = "🎁";
@@ -68415,6 +68408,7 @@ function finishedPayload(envName, target, status, imageRef, branch, repo, actor,
     }
     else if (newYear) {
         headerText = ok ? `:tada: Deployment finished (${statusText}) :confetti_ball:` : `:disappointed_face: Deployment finished (${statusText}) :sparkles:`;
+        color = ok ? "0052a3" : "cc0000";
         branchEmoji = "🎊";
         actorEmoji = "🥳";
         repoEmoji = "🎈";
@@ -68425,6 +68419,7 @@ function finishedPayload(envName, target, status, imageRef, branch, repo, actor,
     }
     else {
         headerText = `${emoji} Deployment finished (${statusText})`;
+        color = ok ? "28a745" : "ff0000";
         branchEmoji = "🧠";
         actorEmoji = "👤";
         repoEmoji = "📚";
@@ -68433,26 +68428,15 @@ function finishedPayload(envName, target, status, imageRef, branch, repo, actor,
         imageEmoji = "🖼️";
         footerText = `Deployment finished`;
     }
-    const message = `${headerText}
-
-${statusEmoji} Status
-${statusText}
-${branchEmoji} Branch
-${branch}
-${actorEmoji} Actor
-${actor}
-${repoEmoji} Repository
-${repo}
-${envEmoji} Environment
-${envName}
-${targetEmoji} Target
-${target}
-${imageEmoji} Image
-${imageRef}
-
-${footerText}`;
     return {
-        text: message,
+        text: headerText,
+        attachments: [
+            {
+                color: color,
+                text: `${statusEmoji} Status\n${statusText}\n\n${branchEmoji} Branch\n${branch}\n\n${actorEmoji} Actor\n${actor}\n\n${repoEmoji} Repository\n${repo}\n\n${envEmoji} Environment\n${envName}\n\n${targetEmoji} Target\n${target}\n\n${imageEmoji} Image\n${imageRef}`,
+                footer: footerText,
+            },
+        ],
     };
 }
 
