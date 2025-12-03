@@ -80,7 +80,15 @@ export function startedPayload(
     attachments: [
       {
         color: color,
-        text: `⏳ Status\nIn Progress\n\n${branchEmoji} Branch\n${branch}\n\n${actorEmoji} Actor\n${actor}\n\n${repoEmoji} Repository\n${repo}\n\n${envEmoji} Environment\n${envName}\n\n${targetEmoji} Target\n${target}\n\n🔗 Run URL\n${runUrl}`,
+        fields: [
+          { title: "⏳ Status", value: "In Progress", short: true },
+          { title: `${branchEmoji} Branch`, value: branch, short: true },
+          { title: `${actorEmoji} Actor`, value: actor, short: true },
+          { title: `${repoEmoji} Repository`, value: repo, short: true },
+          { title: `${envEmoji} Environment`, value: envName, short: true },
+          { title: `${targetEmoji} Target`, value: target, short: true },
+          { title: "🔗 Run URL", value: runUrl, short: false },
+        ],
         footer: footerText,
       },
     ],
@@ -143,7 +151,15 @@ export function finishedPayload(
     attachments: [
       {
         color: color,
-        text: `${statusEmoji} Status\n${statusText}\n\n${branchEmoji} Branch\n${branch}\n\n${actorEmoji} Actor\n${actor}\n\n${repoEmoji} Repository\n${repo}\n\n${envEmoji} Environment\n${envName}\n\n${targetEmoji} Target\n${target}\n\n${imageEmoji} Image\n${imageRef}`,
+        fields: [
+          { title: `${statusEmoji} Status`, value: statusText, short: true },
+          { title: `${branchEmoji} Branch`, value: branch, short: true },
+          { title: `${actorEmoji} Actor`, value: actor, short: true },
+          { title: `${repoEmoji} Repository`, value: repo, short: true },
+          { title: `${envEmoji} Environment`, value: envName, short: true },
+          { title: `${targetEmoji} Target`, value: target, short: true },
+          { title: `${imageEmoji} Image`, value: imageRef, short: false },
+        ],
         footer: footerText,
       },
     ],
