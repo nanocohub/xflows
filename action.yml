@@ -120,5 +120,5 @@ outputs:
     description: "registry/repository@sha256:digest"
 
 runs:
-  using: "node20"
+  using: "node24"
   main: "dist/index.js"
